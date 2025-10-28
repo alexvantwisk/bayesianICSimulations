@@ -1,0 +1,108 @@
+#!/bin/bash --login
+#PBS -N hmc_mh_n2000
+#PBS -l select=1:ncpus=4:mem=16gb
+#PBS -l walltime=6:00:00
+#PBS -J 1-1800
+#PBS -m abe
+#PBS -o /home/22565361/HPC/logs/pbs
+#PBS -e /home/22565361/HPC/logs/pbs
+
+# PBS Job Script for n=2000 datasets
+# Runs both HMC and MH on a single dataset identified by PBS_ARRAYID
+#
+# Resource allocation:
+#   - 4 cores (fully utilized: HMC and MH chains run in parallel)
+#   - 16 GB RAM
+#   - 3 hour walltime (typical runtime ~45 min, 4x buffer for safety)
+#
+# Array range: 1-1800 (one task per dataset)
+#
+set -euo pipefail
+umask 077
+
+LOG_DIR="/home/22565361/HPC/logs"
+mkdir -p "${LOG_DIR}"
+mkdir -p "${LOG_DIR}/pbs"
+
+# Ensure the environment modules command is available
+if ! command -v module >/dev/null 2>&1; then
+  if [ -f /etc/profile.d/modules.sh ]; then
+    # shellcheck disable=SC1091
+    . /etc/profile.d/modules.sh
+  elif [ -f /usr/share/Modules/init/bash ]; then
+    # shellcheck disable=SC1091
+    . /usr/share/Modules/init/bash
+  else
+    echo "ERROR: Unable to locate environment-modules initialization script."
+    exit 2
+  fi
+fi
+
+# Load required modules
+module purge
+if ! module load app/R/4.5.1 >/dev/null 2>&1; then
+  echo "ERROR: module app/R/4.5.1 unavailable on this cluster."
+  exit 4
+fi
+if ! module load compilers/gcc-9.4.0 >/dev/null 2>&1; then
+  echo "ERROR: module compilers/gcc-9.4.0 unavailable on this cluster."
+  exit 5
+fi
+
+# Add local R library and JAGS to path
+export R_LIBS_USER=~/R_libs:${R_LIBS_USER:-}
+export PATH="$HOME/local/jags/bin:$PATH"
+export LD_LIBRARY_PATH="$HOME/local/jags/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+export PKG_CONFIG_PATH="$HOME/local/jags/lib/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
+
+# Navigate to project directory
+if [ -z "${PBS_O_WORKDIR:-}" ] || [ ! -d "${PBS_O_WORKDIR}" ]; then
+    echo "ERROR: PBS_O_WORKDIR (${PBS_O_WORKDIR:-unset}) is not accessible."
+    exit 3
+fi
+cd "${PBS_O_WORKDIR}"
+
+# Ensure numerical libraries respect CPU allocation
+export OMP_NUM_THREADS=${OMP_NUM_THREADS:-1}
+export OPENBLAS_NUM_THREADS=${OPENBLAS_NUM_THREADS:-1}
+export MKL_NUM_THREADS=${MKL_NUM_THREADS:-1}
+export VECLIB_MAXIMUM_THREADS=${VECLIB_MAXIMUM_THREADS:-1}
+export BLIS_NUM_THREADS=${BLIS_NUM_THREADS:-1}
+
+# Normalise array index across PBS flavours
+TASK_ID=${PBS_ARRAYID:-${PBS_ARRAY_INDEX:-}}
+if [ -z "${TASK_ID}" ]; then
+    echo "ERROR: PBS array index not provided."
+    exit 1
+fi
+export PBS_ARRAYID=${TASK_ID}
+
+# Direct stdout/stderr to dataset-specific log files
+LOG_SUFFIX=${PBS_JOBID//[^[:alnum:]._-]/_}
+LOG_BASE="${LOG_DIR}/n2000_${TASK_ID}_${LOG_SUFFIX}"
+exec >"${LOG_BASE}.out"
+exec 2>"${LOG_BASE}.err"
+
+# Log job info
+echo "========================================="
+echo "Job ID: ${PBS_JOBID}"
+echo "Array ID: ${TASK_ID}"
+echo "Node: $(hostname)"
+echo "Start time: $(date)"
+echo "Working directory: $(pwd)"
+echo "========================================="
+echo ""
+
+# Run the R script with dataset index and sample size
+Rscript run_fits.R ${TASK_ID} 2000
+
+# Capture exit status
+EXIT_STATUS=$?
+
+echo ""
+echo "========================================="
+echo "End time: $(date)"
+echo "Exit status: ${EXIT_STATUS}"
+echo "========================================="
+
+exit ${EXIT_STATUS}

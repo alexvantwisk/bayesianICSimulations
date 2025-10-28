@@ -1,0 +1,39 @@
+model {
+      for (i in 1:N) {
+        zeros[i] ~ dpois(phi[i])
+        
+        # AFT parameterization
+        log_lambda[i] <- log(alpha) + beta * X[i]
+        
+        # Handle L[i] > 0 vs L[i] = 0 cases
+        ll[i] <- ifelse(L[i] > 0, ll_positive[i], ll_zero[i])
+        
+        # Case 1: L[i] > 0
+        log_L_lambda_ratio[i] <- log(L[i]) - log_lambda[i]
+        logSL[i] <- -log(1 + exp(gamma * log_L_lambda_ratio[i]))
+        
+        ll_positive[i] <- ifelse(R[i] > 1e10,
+                                wN[i] * logSL[i],
+                                wN[i] * log(exp(logSL[i]) - exp(logSR[i])))
+        
+        log_R_lambda_ratio[i] <- log(max(R[i], L[i] + 0.001)) - log_lambda[i]
+        logSR[i] <- -log(1 + exp(gamma * log_R_lambda_ratio[i]))
+        
+        # Case 2: L[i] = 0 
+        ll_zero[i] <- ifelse(R[i] > 1e10, 0, 
+                            wN[i] * log(1 - exp(logSR_zero[i])))
+        logSR_zero[i] <- -log(1 + exp(gamma * (log(R[i]) - log_lambda[i])))
+        
+        phi[i] <- -ll[i] + 1000
+      }
+      
+      for (j in 1:N) {
+        wN[j] <- w[j] * (N / sum_w)
+      }
+      sum_w <- sum(w[])
+      
+      # Priors matching Stan exactly
+      alpha ~ dlnorm(1.609, 1.0)     # lognormal(log(5), 1)
+      beta  ~ dnorm(0.0, 1.0)        # normal(0, 1)
+      gamma ~ dlnorm(0.0, 4.0)       # lognormal(0, 0.5) -> precision = 4
+    }
