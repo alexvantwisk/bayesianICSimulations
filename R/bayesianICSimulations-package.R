@@ -1,0 +1,78 @@
+#' @keywords internal
+"_PACKAGE"
+
+## usethis namespace: start
+## usethis namespace: end
+NULL
+
+#' bayesianICSimulations: Bayesian Interval-Censored Survival Data Simulation and Analysis
+#'
+#' Tools for comparing Bayesian MCMC methods (HMC via Stan, Metropolis-Hastings
+#' via JAGS) for fitting log-logistic AFT models to interval-censored survival
+#' data with survey weights. Designed for MSc research following the ADEMP
+#' simulation framework.
+#'
+#' @section Main Functions:
+#'
+#' \strong{Model Fitting:}
+#' \itemize{
+#'   \item \code{\link{fit_logistic_hmc}} - Fit models using Hamiltonian Monte Carlo (Stan)
+#'   \item \code{\link{fit_logistic_mh}} - Fit models using Metropolis-Hastings (JAGS)
+#'   \item \code{\link{compute_derived_quantities_mh}} - Calculate derived quantities from MH samples
+#' }
+#'
+#' \strong{Data Loading:}
+#' \itemize{
+#'   \item \code{\link{parse_filename}} - Parse metadata from simulation filenames
+#'   \item \code{\link{load_summaries}} - Load all summary files for a method/sample size
+#'   \item \code{\link{load_diagnostics}} - Load all diagnostic files
+#'   \item \code{\link{combine_results}} - High-level wrapper to combine all results
+#' }
+#'
+#' \strong{Statistical Analysis:}
+#' \itemize{
+#'   \item \code{\link{mcse_mean}} - Monte Carlo standard error for means
+#'   \item \code{\link{mcse_prop}} - Monte Carlo standard error for proportions
+#'   \item \code{\link{calc_bias_rmse}} - Calculate bias and RMSE with MCSEs
+#'   \item \code{\link{cohen_d}} - Effect size calculation
+#' }
+#'
+#' \strong{Visualization:}
+#' \itemize{
+#'   \item \code{\link{load_sims_from_dir}} - Load simulation replicates from directory
+#'   \item \code{\link{summarise_weighted_curves}} - Fit parametric models and summarize
+#'   \item \code{\link{plot_weighted_spaghetti}} - Create ghosted spaghetti plots
+#'   \item \code{\link{facet_design_panels}} - Multi-panel faceted visualization
+#'   \item \code{\link{compute_true_loglogistic}} - Calculate true survival curves
+#'   \item \code{\link{compute_marginal_survival}} - Calculate marginal survival
+#' }
+#'
+#' @section HPC Support:
+#' The package includes HPC workflow scripts in \code{inst/hpc/}:
+#' \itemize{
+#'   \item \code{setup_hpc.sh} - One-time environment setup
+#'   \item \code{submit_all.pbs} - Submit all 5400 datasets
+#'   \item \code{submit_n{200,2000,10000}.pbs} - Sample-size specific submissions
+#' }
+#'
+#' Analysis pipeline scripts are in \code{inst/scripts/}:
+#' \itemize{
+#'   \item \code{01_combine_results.R} - Aggregate results
+#'   \item \code{02_analysis.R} - Statistical analysis
+#'   \item \code{03_visualization.R} - Publication figures
+#' }
+#'
+#' @section Dependencies:
+#' \strong{Required:} tidyverse, progressr, future
+#'
+#' \strong{Optional but recommended:}
+#' \itemize{
+#'   \item \code{cmdstanr} - For HMC (install from https://mc-stan.org/r-packages/)
+#'   \item \code{rjags} - For MH (requires JAGS: https://mcmc-jags.sourceforge.io/)
+#'   \item \code{icenReg} - For survival visualization
+#'   \item \code{future.batchtools} - For HPC parallelization
+#' }
+#'
+#' @docType package
+#' @name bayesianICSimulations-package
+NULL

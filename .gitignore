@@ -1,8 +1,30 @@
+# IDE and development files
 /.claude
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# Large data directories (exclude from git)
+/sim_data             # Raw simulation data (705 MB)
+/mcmc_outputs         # MCMC fitted models (82 MB)
+/outputs              # Analysis results (figures, tables)
+/data                 # Combined datasets (21.5 MB)
+/compiled_models      # Compiled Stan models (platform-specific)
+
+# Documentation drafts (optional)
 /ADEMP_Audit.md
 /AGENTS.md
 /CLAUDE.md
-/data
+/MSc_Protocol_Final.pdf
+
+# Temporary files
 /download_wlow.sh
-/results
-/sim_data
+*.log
+Rplots.pdf
+.DS_Store
+
+# Legacy directories (if they still exist)
+/results              # OLD - replaced by mcmc_outputs and outputs
+/figures              # OLD - duplicate of outputs/figures

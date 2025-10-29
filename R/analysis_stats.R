@@ -1,0 +1,45 @@
+#' Calculate Cohen's d effect size
+#'
+#' Computes Cohen's d for comparing two independent samples, using the pooled
+#' standard deviation estimator. This is the standardized mean difference,
+#' useful for quantifying the practical significance of differences between
+#' HMC and Metropolis-Hastings methods.
+#'
+#' @param x Numeric vector. First sample (e.g., HMC efficiency metrics).
+#' @param y Numeric vector. Second sample (e.g., MH efficiency metrics).
+#'
+#' @return Numeric value representing Cohen's d. Positive values indicate
+#'   that group x has a higher mean than group y.
+#'
+#' @section Interpretation:
+#' \itemize{
+#'   \item |d| < 0.2: Negligible effect
+#'   \item 0.2 ≤ |d| < 0.5: Small effect
+#'   \item 0.5 ≤ |d| < 0.8: Medium effect
+#'   \item |d| ≥ 0.8: Large effect
+#' }
+#'
+#' @section Formula:
+#' \deqn{d = \frac{\bar{x} - \bar{y}}{s_{pooled}}}
+#' where
+#' \deqn{s_{pooled} = \sqrt{\frac{(n_x - 1)s_x^2 + (n_y - 1)s_y^2}{n_x + n_y - 2}}}
+#'
+#' @examples
+#' \dontrun{
+#' # Compare HMC vs MH efficiency
+#' hmc_ess_per_sec <- c(15.2, 16.8, 14.5, 17.1)
+#' mh_ess_per_sec <- c(8.3, 9.1, 7.8, 8.9)
+#' cohen_d(hmc_ess_per_sec, mh_ess_per_sec)  # Positive = HMC more efficient
+#' }
+#'
+#' @references
+#' Cohen, J. (1988). Statistical Power Analysis for the Behavioral Sciences
+#' (2nd ed.). Routledge.
+#'
+#' @export
+cohen_d <- function(x, y) {
+  n1 <- length(x)
+  n2 <- length(y)
+  pooled_sd <- sqrt(((n1 - 1) * var(x) + (n2 - 1) * var(y)) / (n1 + n2 - 2))
+  (mean(x) - mean(y)) / pooled_sd
+}

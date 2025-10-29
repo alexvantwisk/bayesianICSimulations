@@ -1,0 +1,45 @@
+Package: bayesianICSimulations
+Title: Bayesian Interval-Censored Survival Data Simulation and Analysis
+Version: 0.1.0
+Authors@R:
+    person("Alexander", "van Twisk", email = "your.email@domain.com", role = c("aut", "cre"))
+Description: Tools for simulating interval-censored survival data and comparing
+    Bayesian inference methods (HMC via Stan, Metropolis-Hastings via JAGS) for
+    log-logistic AFT models. Designed for MSc research on MCMC comparison with
+    weighted interval-censored data. Includes visualization tools for exploratory
+    analysis and standardized analysis pipelines following the ADEMP framework.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends:
+    R (>= 4.0.0)
+Imports:
+    dplyr (>= 1.0.0),
+    tidyr (>= 1.0.0),
+    purrr (>= 0.3.0),
+    ggplot2 (>= 3.3.0),
+    stringr (>= 1.4.0),
+    tibble (>= 3.0.0),
+    progressr (>= 0.10.0),
+    future (>= 1.21.0),
+    future.apply (>= 1.7.0)
+Suggests:
+    cmdstanr (>= 0.5.0),
+    rjags (>= 4.0),
+    coda (>= 0.19),
+    posterior (>= 1.0.0),
+    future.batchtools (>= 0.10.0),
+    survival (>= 3.2),
+    icenReg (>= 2.0),
+    broom (>= 0.7.0),
+    ggridges (>= 0.5.0),
+    tidybayes (>= 3.0.0),
+    viridis (>= 0.6.0),
+    patchwork (>= 1.1.0),
+    scales (>= 1.1.0),
+    gt (>= 0.3.0),
+    forcats (>= 0.5.0),
+    readr (>= 2.0.0),
+    parallel
+Additional_repositories: https://mc-stan.org/r-packages/
