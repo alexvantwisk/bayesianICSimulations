@@ -1,714 +1,620 @@
-#!/usr/bin/env Rscript
-# ==============================================================================
-# 03_visualization.R
-#
-# Purpose: Create publication-ready tables and figures for HMC vs MH comparison
-#
-# Inputs:  results/analysis/scenario_summaries.rds
-#          results/analysis/convergence_analysis.csv
-#          results/analysis/efficiency_comparisons.csv
-#          results/analysis/statistical_tests.rds
-#
-# Outputs: results/tables/*.csv (gt tables)
-#          results/figures/*.png and *.pdf (ggplot figures)
-#
-# Author: Alexander van Twisk
-# Date: 2025-10-24
-# ==============================================================================
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(forcats)
+  library(ggplot2)
+  library(ggridges)
+  library(tidybayes)
+  library(tidyr)
+})
 
-# Load required packages -------------------------------------------------------
-library(tidyverse)
-library(gt)
-library(patchwork)
-library(scales)
+res <- read.csv("data/combined_summaries.csv")
+diagnostics <- read.csv("data/combined_diagnostics.csv")
 
-# Setup ------------------------------------------------------------------------
-# Assume script is run from HPC directory or set working directory appropriately
-if (file.exists("results") && file.exists("analysis_scripts")) {
-  base_dir <- getwd()
-} else if (file.exists("../results") && file.exists("../data")) {
-  # If running from analysis_scripts directory, go up one level
-  base_dir <- dirname(getwd())
-} else {
-  # Default to current directory
-  base_dir <- getwd()
-}
-results_dir <- file.path(base_dir, "results")
-analysis_dir <- file.path(results_dir, "analysis")
-tables_dir <- file.path(results_dir, "tables")
-figures_dir <- file.path(results_dir, "figures")
+std_method <- function(x) toupper(as.character(x))
 
-# Create output directories
-dir.create(tables_dir, showWarnings = FALSE, recursive = TRUE)
-dir.create(figures_dir, showWarnings = FALSE, recursive = TRUE)
+res <- res %>%
+  as_tibble() %>%
+  rename(
+    parameter = variable,
+    ess_bulk = ess,
+    weight = weight_type,
+    runtime_summary = total_time
+  ) %>%
+  filter(parameter %in% c("alpha", "beta", "gamma")) %>%
+  mutate(method = std_method(method))
 
-cat("\n")
-cat(paste(rep("=", 78), collapse = ""), "\n")
-cat("Creating Tables and Figures: HMC vs MH Comparison\n")
-cat(paste(rep("=", 78), collapse = ""), "\n\n")
-
-# Load Data --------------------------------------------------------------------
-cat("Loading analysis results...\n")
-
-# Load aggregated analysis results
-scenario_summaries <- readRDS(file.path(analysis_dir, "scenario_summaries.rds"))
-convergence_analysis <- read_csv(file.path(analysis_dir, "convergence_analysis.csv"),
-                                  show_col_types = FALSE)
-efficiency_comparisons <- read_csv(file.path(analysis_dir, "efficiency_comparisons.csv"),
-                                    show_col_types = FALSE)
-statistical_tests <- readRDS(file.path(analysis_dir, "statistical_tests.rds"))
-
-# Load replicate-level data for paired comparison plots
-data_dir <- file.path(base_dir, "data")
-combined_summaries <- readRDS(file.path(data_dir, "combined_summaries.rds"))
-
-# Filter out log_alpha variable (derived quantity, causes NA panels)
-scenario_summaries <- scenario_summaries %>%
-  filter(variable != "log_alpha")
-combined_summaries <- combined_summaries %>%
-  filter(variable != "log_alpha")
-
-cat("  ✓ Data loaded successfully\n\n")
-
-# Helper Functions -------------------------------------------------------------
-
-#' Save plot in multiple formats
-save_plot <- function(plot, filename, width = 10, height = 6) {
-  # Save as PNG (300 dpi for publication)
-  ggsave(
-    filename = file.path(figures_dir, paste0(filename, ".png")),
-    plot = plot,
-    width = width,
-    height = height,
-    dpi = 300,
-    bg = "white"
+diagnostics <- diagnostics %>%
+  as_tibble() %>%
+  rename(
+    weight = weight_type,
+    ess_tail = min_ess_tail,
+    runtime_diag = total_time_sec
+  ) %>%
+  mutate(method = std_method(method)) %>%
+  select(
+    method,
+    scenario_id,
+    replicate,
+    n_obs,
+    censoring,
+    weight,
+    ess_tail,
+    ess_per_sec,
+    runtime_diag
   )
 
-  # Save as PDF (vector)
-  ggsave(
-    filename = file.path(figures_dir, paste0(filename, ".pdf")),
-    plot = plot,
-    width = width,
-    height = height,
-    device = "pdf"
-  )
-
-  cat(sprintf("  ✓ Saved %s.png and .pdf\n", filename))
-}
-
-# Set ggplot theme -------------------------------------------------------------
-theme_set(theme_bw(base_size = 11))
-theme_update(
-  panel.grid.minor = element_blank(),
-  strip.background = element_rect(fill = "grey90"),
-  legend.position = "bottom"
-)
-
-# Color palette (colorblind-friendly)
-method_colors <- c("hmc" = "#0072B2", "mh" = "#D55E00")
-method_labels <- c("hmc" = "HMC", "mh" = "MH")
-
-# TABLES =======================================================================
-
-cat("Creating tables...\n")
-
-# Table 1: Study Overview ------------------------------------------------------
-
-table1_data <- convergence_analysis %>%
-  group_by(method, n_obs) %>%
-  summarise(
-    n_scenarios = n_distinct(scenario_id),
-    observed_fits = sum(n_observed),  # CHANGED: was n_total
-    expected_fits = sum(n_expected),   # NEW: total expected
-    missing_fits = sum(n_missing),     # NEW: total missing
-    converged_fits = sum(n_converged),
-    pct_complete = 100 * observed_fits / expected_fits,  # NEW
-    pct_converged = 100 * converged_fits / expected_fits,  # CHANGED: % of expected
-    .groups = "drop"
+res <- res %>%
+  left_join(
+    diagnostics,
+    by = c("method", "scenario_id", "replicate", "n_obs", "censoring", "weight")
   ) %>%
   mutate(
-    method = factor(method, levels = c("hmc", "mh"), labels = c("HMC", "MH"))
-  )
-
-table1 <- table1_data %>%
-  gt() %>%
-  tab_header(
-    title = "Table 1: Study Overview and Completion Rates"
+    runtime_s = coalesce(runtime_diag, runtime_summary),
+    ess_per_sec = coalesce(
+      ess_per_sec,
+      if_else(!is.na(runtime_s) & runtime_s > 0, ess_bulk / runtime_s, NA_real_)
+    ),
+    bias = error,
+    rmse = sqrt(squared_error)
   ) %>%
-  cols_label(
-    method = "Method",
-    n_obs = "Sample Size",
-    n_scenarios = "Scenarios",
-    observed_fits = "Observed",   # CHANGED
-    expected_fits = "Expected",   # NEW
-    missing_fits = "Missing",     # NEW
-    converged_fits = "Converged",
-    pct_complete = "% Complete",  # NEW
-    pct_converged = "% Converged"
-  ) %>%
-  fmt_number(
-    columns = c(observed_fits, expected_fits, missing_fits, converged_fits),  # UPDATED
-    decimals = 0
-  ) %>%
-  fmt_number(
-    columns = c(pct_complete, pct_converged),  # UPDATED
-    decimals = 1
-  ) %>%
-  tab_style(
-    style = cell_fill(color = "grey95"),
-    locations = cells_body(rows = method == "HMC")
-  )
+  select(-runtime_diag, -runtime_summary)
 
-# Save as HTML and CSV
-table1 %>%
-  gtsave(filename = file.path(tables_dir, "table1_overview.html"))
-
-table1_data %>%
-  write_csv(file.path(tables_dir, "table1_overview.csv"))
-
-cat("  ✓ Saved Table 1: Study Overview\n")
-
-# Table 2: Convergence Summary -------------------------------------------------
-
-table2_data <- convergence_analysis %>%
-  group_by(method, n_obs) %>%
-  summarise(
-    mean_rhat = mean(mean_rhat, na.rm = TRUE),
-    max_rhat = max(max_rhat_obs, na.rm = TRUE),
-    mean_ess = mean(mean_ess, na.rm = TRUE),
-    min_ess = min(min_ess_obs, na.rm = TRUE),
-    pct_converged = mean(pct_converged, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
+res <- res %>%
   mutate(
-    method = factor(method, levels = c("hmc", "mh"), labels = c("HMC", "MH"))
+    n_obs = factor(
+      n_obs,
+      levels = c(200, 2000, 10000),
+      labels = c("n = 200", "n = 2000", "n = 10000")
+    ),
+    weight = factor(weight, levels = c("none", "low", "high")),
+    censoring = factor(
+      censoring,
+      levels = c(0.1, 0.3, 0.5),
+      labels = c("C=0.1", "C=0.3", "C=0.5")
+    ),
+    method = factor(std_method(method), levels = c("HMC", "MH")),
+    scenario = if (!"scenario" %in% names(.)) {
+      interaction(censoring, weight, sep = ", ")
+    } else {
+      scenario
+    }
   )
 
-table2 <- table2_data %>%
-  gt() %>%
-  tab_header(
-    title = "Table 2: Convergence Diagnostics by Method and Sample Size"
-  ) %>%
-  cols_label(
-    method = "Method",
-    n_obs = "Sample Size",
-    mean_rhat = "Mean R̂",
-    max_rhat = "Max R̂",
-    mean_ess = "Mean ESS",
-    min_ess = "Min ESS",
-    pct_converged = "% Converged"
-  ) %>%
-  fmt_number(
-    columns = c(mean_rhat, max_rhat),
-    decimals = 3
-  ) %>%
-  fmt_number(
-    columns = c(mean_ess, min_ess),
-    decimals = 0
-  ) %>%
-  fmt_number(
-    columns = pct_converged,
-    decimals = 1
-  ) %>%
-  tab_style(
-    style = cell_fill(color = "lightyellow"),
-    locations = cells_body(
-      columns = mean_rhat,
-      rows = mean_rhat > 1.01
-    )
-  ) %>%
-  tab_style(
-    style = cell_fill(color = "lightyellow"),
-    locations = cells_body(
-      columns = mean_ess,
-      rows = mean_ess < 400
-    )
-  )
+pal <- c(HMC = "#2C7FB8", MH = "#F28E2B")
 
-table2 %>%
-  gtsave(filename = file.path(tables_dir, "table2_convergence.html"))
-
-table2_data %>%
-  write_csv(file.path(tables_dir, "table2_convergence.csv"))
-
-cat("  ✓ Saved Table 2: Convergence Summary\n")
-
-# Table 3: Posterior Accuracy (Main Results) ----------------------------------
-
-table3_data <- scenario_summaries %>%
-  filter(variable != "lp__") %>%
-  group_by(method, variable, n_obs) %>%
-  summarise(
-    # All fits
-    mean_bias = mean(abs(bias), na.rm = TRUE),
-    mean_bias_mcse = mean(bias_mcse, na.rm = TRUE),
-    mean_rmse = mean(rmse, na.rm = TRUE),
-    mean_coverage = mean(coverage, na.rm = TRUE),
-    mean_coverage_mcse = mean(coverage_mcse, na.rm = TRUE),
-
-    # Converged only
-    mean_bias_conv = mean(abs(bias_converged), na.rm = TRUE),
-    mean_rmse_conv = mean(rmse_converged, na.rm = TRUE),
-    mean_coverage_conv = mean(coverage_converged, na.rm = TRUE),
-
-    .groups = "drop"
-  ) %>%
-  mutate(
-    method = factor(method, levels = c("hmc", "mh"), labels = c("HMC", "MH")),
-    parameter = factor(variable, levels = c("alpha", "beta", "gamma"),
-                      labels = c("alpha", "beta", "gamma"))
-  )
-
-table3 <- table3_data %>%
-  select(method, parameter, n_obs,
-         mean_bias, mean_rmse, mean_coverage, mean_coverage_mcse,
-         mean_bias_conv, mean_rmse_conv, mean_coverage_conv) %>%
-  gt(groupname_col = "parameter") %>%
-  tab_header(
-    title = "Table 3: Posterior Accuracy by Parameter, Method, and Sample Size",
-    subtitle = "All Fits and Converged Fits"
-  ) %>%
-  tab_spanner(
-    label = "All Fits",
-    columns = c(mean_bias, mean_rmse, mean_coverage, mean_coverage_mcse)
-  ) %>%
-  tab_spanner(
-    label = "Converged Only",
-    columns = c(mean_bias_conv, mean_rmse_conv, mean_coverage_conv)
-  ) %>%
-  cols_label(
-    method = "Method",
-    n_obs = "n",
-    mean_bias = "|Bias|",
-    mean_rmse = "RMSE",
-    mean_coverage = "Coverage",
-    mean_coverage_mcse = "MCSE",
-    mean_bias_conv = "|Bias|",
-    mean_rmse_conv = "RMSE",
-    mean_coverage_conv = "Coverage"
-  ) %>%
-  fmt_number(
-    columns = c(mean_bias, mean_bias_conv, mean_rmse, mean_rmse_conv),
-    decimals = 3
-  ) %>%
-  fmt_number(
-    columns = c(mean_coverage, mean_coverage_conv),
-    decimals = 3
-  ) %>%
-  fmt_number(
-    columns = mean_coverage_mcse,
-    decimals = 4
-  ) %>%
-  tab_style(
-    style = cell_fill(color = "lightgreen"),
-    locations = cells_body(
-      columns = c(mean_coverage, mean_coverage_conv),
-      rows = (mean_coverage >= 0.945 & mean_coverage <= 0.955) |
-             (mean_coverage_conv >= 0.945 & mean_coverage_conv <= 0.955)
-    )
-  )
-
-table3 %>%
-  gtsave(filename = file.path(tables_dir, "table3_accuracy.html"))
-
-table3_data %>%
-  write_csv(file.path(tables_dir, "table3_accuracy.csv"))
-
-cat("  ✓ Saved Table 3: Posterior Accuracy\n")
-
-# Table 4: Sampling Efficiency ------------------------------------------------
-
-table4_data <- scenario_summaries %>%
-  filter(variable == "alpha") %>%  # Use one parameter (metrics same across params)
-  group_by(method, n_obs, censoring, weight_type) %>%
-  summarise(
-    mean_ess_per_sec = mean(mean_ess_per_sec, na.rm = TRUE),
-    median_ess_per_sec = mean(median_ess_per_sec, na.rm = TRUE),
-    mean_runtime = mean(mean_runtime, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    method = factor(method, levels = c("hmc", "mh"), labels = c("HMC", "MH"))
-  )
-
-table4 <- table4_data %>%
-  gt() %>%
-  tab_header(
-    title = "Table 4: Sampling Efficiency (ESS/sec) and Runtime"
-  ) %>%
-  cols_label(
-    method = "Method",
-    n_obs = "Sample Size",
-    censoring = "Censoring",
-    weight_type = "Weights",
-    mean_ess_per_sec = "Mean ESS/sec",
-    median_ess_per_sec = "Median ESS/sec",
-    mean_runtime = "Mean Runtime (sec)"
-  ) %>%
-  fmt_number(
-    columns = c(mean_ess_per_sec, median_ess_per_sec),
-    decimals = 1
-  ) %>%
-  fmt_number(
-    columns = mean_runtime,
-    decimals = 2
-  )
-
-table4 %>%
-  gtsave(filename = file.path(tables_dir, "table4_efficiency.html"))
-
-table4_data %>%
-  write_csv(file.path(tables_dir, "table4_efficiency.csv"))
-
-cat("  ✓ Saved Table 4: Sampling Efficiency\n")
-
-# NOTE: Table 5 (HMC Diagnostics) removed - all divergence values were zero
-
-cat("\n")
-
-# FIGURES ======================================================================
-
-cat("Creating figures...\n")
-
-# Figure 1: Convergence Diagnostics -------------------------------------------
-
-# Panel A: R̂ distributions by sample size
-fig1a <- convergence_analysis %>%
-  ggplot(aes(x = method, y = mean_rhat, fill = method)) +
-  geom_violin(alpha = 0.7, trim = FALSE) +
-  geom_boxplot(width = 0.2, alpha = 0.5, outlier.shape = NA) +
-  geom_hline(yintercept = 1.01, linetype = "dashed", color = "red") +
-  facet_wrap(~n_obs, labeller = label_both) +
-  scale_fill_manual(
-    values = method_colors,
-    labels = method_labels,
-    name = "Method"
-  ) +
-  scale_x_discrete(labels = method_labels) +
-  labs(
-    title = "A) R-hat Distributions",
-    x = "Method",
-    y = "Mean R-hat"
-  ) +
-  theme(legend.position = "none")
-
-# Panel B: ESS distributions by sample size
-fig1b <- convergence_analysis %>%
-  ggplot(aes(x = method, y = mean_ess, fill = method)) +
-  geom_violin(alpha = 0.7, trim = FALSE) +
-  geom_boxplot(width = 0.2, alpha = 0.5, outlier.shape = NA) +
-  geom_hline(yintercept = 400, linetype = "dashed", color = "red") +
-  facet_wrap(~n_obs, labeller = label_both) +
-  scale_fill_manual(
-    values = method_colors,
-    labels = method_labels,
-    name = "Method"
-  ) +
-  scale_x_discrete(labels = method_labels) +
-  scale_y_log10(labels = comma) +
-  labs(
-    title = "B) Effective Sample Size (ESS)",
-    x = "Method",
-    y = "Mean ESS (log scale)"
-  ) +
-  theme(legend.position = "none")
-
-# Panel C: Convergence failure rates by sample size
-fig1c <- convergence_analysis %>%
-  group_by(method, n_obs) %>%
-  summarise(
-    failure_rate = 100 * (1 - mean(pct_converged / 100)),
-    .groups = "drop"
-  ) %>%
-  ggplot(aes(x = method, y = failure_rate, fill = method)) +
-  geom_col(alpha = 0.7, width = 0.6) +
-  facet_wrap(~n_obs, labeller = label_both) +
-  scale_fill_manual(
-    values = method_colors,
-    labels = method_labels,
-    name = "Method"
-  ) +
-  scale_x_discrete(labels = method_labels) +
-  labs(
-    title = "C) Convergence Failure Rates",
-    x = "Method",
-    y = "Failure Rate (%)"
-  )
-
-# Combine panels vertically for better readability with sample size facets
-fig1 <- fig1a / fig1b / fig1c +
-  plot_layout(guides = "collect") &
-  theme(legend.position = "bottom")
-
-save_plot(fig1, "fig1_convergence", width = 12, height = 12)
-
-# Figure 2: Coverage Analysis (with MC uncertainty) ---------------------------
-
-# Prepare data for coverage plot
-coverage_data <- scenario_summaries %>%
-  filter(variable != "lp__") %>%
-  mutate(
-    variable_label = factor(variable,
-                           levels = c("alpha", "beta", "gamma"),
-                           labels = c("alpha (Scale)", "beta (AFT Coef.)", "gamma (Shape)")),
-    scenario_label_short = paste0("c", censoring, "_", weight_type),
-    n_obs_label = paste0("n = ", n_obs)
-  )
-
-fig2 <- coverage_data %>%
-  ggplot(aes(x = scenario_label_short, y = coverage, color = method, shape = method)) +
-  # Target coverage line
-  geom_hline(yintercept = 0.95, linetype = "solid", color = "black", linewidth = 0.5) +
-  # Monte Carlo uncertainty ribbon (0.95 ± 2*MCSE)
-  annotate(
-    "rect",
-    xmin = -Inf, xmax = Inf,
-    ymin = 0.95 - 2 * mean(coverage_data$coverage_mcse, na.rm = TRUE),
-    ymax = 0.95 + 2 * mean(coverage_data$coverage_mcse, na.rm = TRUE),
-    alpha = 0.2,
-    fill = "gray70"
-  ) +
-  # Coverage points
-  geom_point(size = 2.5, alpha = 0.7, position = position_dodge(width = 0.5)) +
-  facet_grid(n_obs_label ~ variable_label) +
-  scale_color_manual(
-    values = method_colors,
-    labels = method_labels,
-    name = "Method"
-  ) +
-  scale_shape_manual(
-    values = c("hmc" = 16, "mh" = 17),
-    labels = method_labels,
-    name = "Method"
-  ) +
-  labs(
-    title = "Figure 2: Coverage of 95% Credible Intervals with Monte Carlo Uncertainty",
-    subtitle = "Gray ribbon shows target coverage ± 2×MCSE; Rows = sample size, Columns = parameter",
-    x = "Scenario (Censoring_Weight)",
-    y = "Coverage Proportion"
-  ) +
+theme_sci <- theme_minimal(base_size = 11) +
   theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "grey95", colour = NA),
+    strip.text = element_text(face = "bold"),
     legend.position = "bottom"
   )
 
-save_plot(fig2, "fig2_coverage", width = 12, height = 10)
-
-# Figure 3: Bias and RMSE Comparisons -----------------------------------------
-
-# Panel A: Bias
-fig3a <- scenario_summaries %>%
-  filter(variable != "lp__") %>%
-  mutate(
-    variable_label = factor(variable,
-                           levels = c("alpha", "beta", "gamma"),
-                           labels = c("alpha", "beta", "gamma"))
-  ) %>%
-  ggplot(aes(x = variable_label, y = bias, fill = method)) +
-  geom_violin(position = position_dodge(width = 0.8), alpha = 0.7, trim = FALSE) +
-  geom_boxplot(position = position_dodge(width = 0.8), width = 0.2, alpha = 0.5, outlier.shape = NA) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
-  facet_wrap(~n_obs, labeller = label_both) +
-  scale_fill_manual(
-    values = method_colors,
-    labels = method_labels,
-    name = "Method"
-  ) +
+p1a <- ggplot(res, aes(rhat, colour = method)) +
+  stat_ecdf(geom = "step", linewidth = 0.5) +
+  geom_vline(xintercept = 1.01, linetype = 2, colour = "grey40") +
+  facet_wrap(~n_obs, nrow = 1) +
+  scale_colour_manual(values = pal) +
   labs(
-    title = "A) Bias by Parameter and Sample Size",
-    x = "Parameter",
-    y = "Bias"
+    x = "R-hat",
+    y = "ECDF",
+    colour = "Method",
+    title = "R-hat ECDFs by sample size"
   ) +
+  coord_cartesian(xlim = c(1, 1.02)) +
+  theme_sci
+
+p1b <- ggplot(
+  res,
+  aes(x = ess_bulk, y = scenario, fill = method, colour = method)
+) +
+  geom_density_ridges(alpha = 0.6, scale = 0.95, linewidth = 0.2) +
+  facet_wrap(~n_obs, nrow = 1) +
+  scale_x_log10() +
+  scale_fill_manual(values = pal) +
+  scale_colour_manual(values = pal) +
+  labs(
+    x = "Effective sample size (log10)",
+    y = "Scenario (Censoring, Weight)",
+    fill = "Method",
+    colour = "Method",
+    title = "ESS distributions by scenario"
+  ) +
+  theme_sci
+
+cov <- res %>%
+  transmute(
+    n_obs,
+    censoring,
+    weight,
+    method,
+    parameter,
+    covered = contains_truth
+  )
+
+cov_sum <- cov %>%
+  group_by(n_obs, censoring, weight, method, parameter) %>%
+  summarise(
+    coverage = mean(covered),
+    R = dplyr::n(),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    mcse = sqrt(0.95 * 0.05 / R),
+    lo = 0.95 - 2 * mcse,
+    hi = 0.95 + 2 * mcse,
+    scnx = interaction(censoring, weight, sep = ","),
+    scnx = forcats::fct_inorder(scnx),
+    scnx_id = as.numeric(scnx)
+  ) %>%
+  filter(!is.na(coverage))
+
+cov_band <- cov_sum %>%
+  distinct(n_obs, parameter, scnx_id, lo, hi)
+
+p2 <- ggplot(
+  cov_sum,
+  aes(
+    x = scnx_id,
+    y = coverage,
+    colour = method,
+    shape = method,
+    group = method
+  )
+) +
+  geom_hline(yintercept = 0.95, colour = "grey40") +
+  geom_ribbon(
+    data = cov_band,
+    aes(x = scnx_id, ymin = lo, ymax = hi),
+    inherit.aes = FALSE,
+    fill = "grey80",
+    alpha = 0.3
+  ) +
+  geom_point(position = position_dodge(width = 0.4), size = 2) +
+  facet_grid(n_obs ~ parameter) +
+  scale_x_continuous(
+    breaks = sort(unique(cov_sum$scnx_id)),
+    labels = levels(cov_sum$scnx)
+  ) +
+  scale_colour_manual(values = pal) +
+  labs(
+    x = "Scenario (Censoring, Weight)",
+    y = "Coverage proportion",
+    colour = "Method",
+    shape = "Method",
+    title = "Coverage of 95% credible intervals with MC uncertainty bands"
+  ) +
+  theme_sci +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1))
+
+perf <- res %>%
+  filter(!is.na(parameter), !is.na(bias), !is.na(rmse), rmse > 0)
+
+p3_bias <- ggplot(perf, aes(x = method, y = bias, fill = method)) +
+  stat_halfeye(
+    adjust = 0.6,
+    width = 0.6,
+    .width = 0.5,
+    justification = -0.2,
+    slab_alpha = 0.7,
+    point_colour = "black"
+  ) +
+  geom_hline(yintercept = 0, linetype = 2, colour = "grey40") +
+  facet_grid(n_obs ~ parameter) +
+  scale_fill_manual(values = pal) +
+  labs(
+    x = NULL,
+    y = "Bias",
+    title = "Bias by parameter and sample size"
+  ) +
+  theme_sci +
   theme(legend.position = "none")
 
-# Panel B: RMSE
-fig3b <- scenario_summaries %>%
-  filter(variable != "lp__") %>%
-  mutate(
-    variable_label = factor(variable,
-                           levels = c("alpha", "beta", "gamma"),
-                           labels = c("alpha", "beta", "gamma"))
+p3_rmse <- ggplot(perf, aes(x = method, y = rmse, fill = method)) +
+  stat_halfeye(
+    adjust = 0.6,
+    width = 0.6,
+    .width = 0.5,
+    justification = -0.2,
+    slab_alpha = 0.7,
+    point_colour = "black"
+  ) +
+  facet_grid(n_obs ~ parameter) +
+  scale_y_continuous(trans = "log10") +
+  scale_fill_manual(values = pal) +
+  labs(
+    x = NULL,
+    y = "RMSE (log scale)",
+    title = "RMSE by parameter and sample size"
+  ) +
+  theme_sci +
+  theme(legend.position = "none")
+
+p4 <- ggplot(res, aes(x = method, y = ess_per_sec, fill = method)) +
+  geom_violin(trim = FALSE, alpha = 0.7) +
+  stat_summary(fun = median, geom = "point", colour = "black", size = 1.2) +
+  facet_wrap(~n_obs, nrow = 1) +
+  scale_y_log10() +
+  scale_fill_manual(values = pal) +
+  labs(
+    x = NULL,
+    y = "ESS / second (log scale)",
+    title = "Sampling efficiency"
+  ) +
+  theme_sci +
+  theme(legend.position = "none")
+
+run_df <- res %>%
+  filter(!is.na(runtime_s))
+
+p5 <- ggplot(run_df, aes(x = method, y = runtime_s, fill = method)) +
+  geom_violin(trim = FALSE, alpha = 0.7) +
+  stat_summary(fun = median, geom = "point", colour = "black", size = 1.2) +
+  facet_grid(n_obs + weight ~ censoring) +
+  scale_y_log10() +
+  scale_fill_manual(values = pal) +
+  labs(
+    x = NULL,
+    y = "Runtime (seconds, log scale)",
+    title = "Total runtime by sample size, censoring, and weight"
+  ) +
+  theme_sci +
+  theme(legend.position = "bottom")
+
+est_df <- res %>%
+  mutate(method_chr = as.character(method)) %>%
+  select(
+    parameter,
+    n_obs,
+    censoring,
+    weight,
+    scenario_id,
+    replicate,
+    method_chr,
+    mean
   ) %>%
-  ggplot(aes(x = variable_label, y = rmse, fill = method)) +
-  geom_violin(position = position_dodge(width = 0.8), alpha = 0.7, trim = FALSE) +
-  geom_boxplot(position = position_dodge(width = 0.8), width = 0.2, alpha = 0.5, outlier.shape = NA) +
-  facet_wrap(~n_obs, labeller = label_both) +
-  scale_fill_manual(
-    values = method_colors,
-    labels = method_labels,
-    name = "Method"
-  ) +
-  labs(
-    title = "B) RMSE by Parameter and Sample Size",
-    x = "Parameter",
-    y = "RMSE"
-  )
-
-# Combine panels
-fig3 <- fig3a / fig3b +
-  plot_layout(guides = "collect") &
-  theme(legend.position = "bottom")
-
-save_plot(fig3, "fig3_bias_rmse", width = 12, height = 10)
-
-# Figure 4: Sampling Efficiency -----------------------------------------------
-
-fig4_data <- scenario_summaries %>%
-  filter(variable == "alpha") %>%
-  filter(!is.na(mean_ess_per_sec) & is.finite(mean_ess_per_sec))
-
-fig4 <- fig4_data %>%
-  ggplot(aes(x = method, y = mean_ess_per_sec, fill = method)) +
-  geom_violin(alpha = 0.7, trim = FALSE) +
-  geom_boxplot(width = 0.2, alpha = 0.5, outlier.shape = NA) +
-  facet_wrap(~n_obs, labeller = label_both, scales = "free_y") +
-  scale_fill_manual(
-    values = method_colors,
-    labels = method_labels,
-    name = "Method"
-  ) +
-  scale_x_discrete(labels = method_labels) +
-  scale_y_log10(labels = comma) +
-  labs(
-    title = "Figure 4: Sampling Efficiency (ESS per Second)",
-    x = "Method",
-    y = "ESS per Second (log scale)"
-  ) +
-  theme(legend.position = "bottom")
-
-save_plot(fig4, "fig4_efficiency", width = 12, height = 5)
-
-# Figure 5: Runtime Comparisons -----------------------------------------------
-
-fig5_data <- scenario_summaries %>%
-  filter(variable == "alpha") %>%
-  filter(!is.na(mean_runtime) & is.finite(mean_runtime)) %>%
-  mutate(
-    censoring_label = paste0("Censoring: ", censoring),
-    n_obs_label = paste0("n = ", n_obs)
-  )
-
-fig5 <- fig5_data %>%
-  ggplot(aes(x = method, y = mean_runtime, fill = method)) +
-  geom_violin(alpha = 0.7, trim = FALSE) +
-  geom_boxplot(
-    width = 0.2,
-    alpha = 0.5,
-    outlier.shape = NA
-  ) +
-  scale_fill_manual(
-    values = method_colors,
-    labels = method_labels,
-    name = "Method"
-  ) +
-  scale_x_discrete(labels = method_labels) +
-  scale_y_log10(labels = comma) +
-  facet_grid(n_obs_label ~ censoring_label) +
-  labs(
-    title = "Figure 5: Total Runtime by Sample Size and Censoring",
-    subtitle = "Rows = sample size, Columns = censoring level",
-    x = "Method",
-    y = "Runtime (seconds, log scale)"
-  ) +
-  theme(legend.position = "bottom")
-
-save_plot(fig5, "fig5_runtime", width = 12, height = 10)
-
-# Figure 6: HMC Diagnostics ---------------------------------------------------
-
-# Panel A: Divergences by sample size
-fig6a <- convergence_analysis %>%
-  filter(method == "hmc") %>%
-  ggplot(aes(x = factor(n_obs), y = mean_divergences)) +
-  geom_violin(fill = method_colors["hmc"], alpha = 0.7, trim = FALSE) +
-  geom_boxplot(width = 0.2, alpha = 0.5, outlier.shape = NA) +
-  facet_wrap(~n_obs, labeller = label_both, scales = "free_x") +
-  labs(
-    title = "A) Divergences by Sample Size",
-    x = "Sample Size",
-    y = "Mean Divergences per Fit"
-  ) +
-  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
-
-# Panel B: Scenarios with divergences by sample size
-fig6b <- convergence_analysis %>%
-  filter(method == "hmc") %>%
-  mutate(has_div = n_divergences > 0) %>%
-  ggplot(aes(x = factor(n_obs), fill = has_div)) +
-  geom_bar(position = "fill", alpha = 0.7) +
-  facet_wrap(~n_obs, labeller = label_both, scales = "free_x") +
-  scale_fill_manual(
-    values = c("TRUE" = "red", "FALSE" = "lightgreen"),
-    labels = c("TRUE" = "With Divergences", "FALSE" = "No Divergences"),
-    name = ""
-  ) +
-  scale_y_continuous(labels = percent) +
-  labs(
-    title = "B) Proportion with Divergences by Sample Size",
-    x = "Sample Size",
-    y = "Proportion of Scenarios"
-  ) +
-  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
-
-# Combine panels
-fig6 <- fig6a / fig6b +
-  plot_layout(guides = "collect") &
-  theme(legend.position = "bottom")
-
-save_plot(fig6, "fig6_hmc_diagnostics", width = 12, height = 8)
-
-# Figure 7: Parameter Estimate Distributions ----------------------------------
-
-fig7_data <- combined_summaries %>%
-  filter(variable != "lp__") %>%
-  select(method, variable, n_obs, scenario_id, censoring, weight_type, replicate, mean) %>%
   pivot_wider(
-    names_from = method,
+    names_from = method_chr,
     values_from = mean,
-    names_glue = "{.value}_{method}"
+    names_prefix = "mean_"
   ) %>%
-  filter(!is.na(mean_hmc) & !is.na(mean_mh))
+  rename(
+    mean_hmc = mean_HMC,
+    mean_mh = mean_MH
+  ) %>%
+  drop_na(mean_hmc, mean_mh)
 
-fig7 <- fig7_data %>%
+est_df <- est_df %>%
   mutate(
-    variable_label = factor(variable,
-                           levels = c("alpha", "beta", "gamma"),
-                           labels = c("alpha (True = 5.0)", "beta (True = -0.5)", "gamma (True = 1.5)")),
-    n_obs_label = paste0("n = ", n_obs)
-  ) %>%
-  ggplot(aes(x = mean_hmc, y = mean_mh)) +
-  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "red") +
-  geom_point(alpha = 0.3, size = 1) +
-  facet_grid(n_obs_label ~ variable_label, scales = "free") +
+    n_obs = factor(n_obs, levels = c("n = 200", "n = 2000", "n = 10000"))
+  )
+
+p7 <- ggplot(est_df, aes(x = mean_hmc, y = mean_mh)) +
+  geom_abline(slope = 1, intercept = 0, linetype = 2, colour = "grey50") +
+  geom_point(alpha = 0.5, size = 0.6) +
+  facet_grid(n_obs ~ parameter) +
+  coord_equal() +
   labs(
-    title = "Figure 7: Posterior Mean Estimates (HMC vs MH)",
-    subtitle = "Red line shows perfect agreement; Rows = sample size, Columns = parameter",
-    x = "HMC Posterior Mean",
-    y = "MH Posterior Mean"
+    x = "HMC posterior mean",
+    y = "MH posterior mean",
+    title = "Agreement of posterior means (HMC vs MH)"
   ) +
-  theme(aspect.ratio = 1)
+  theme_sci
 
-save_plot(fig7, "fig7_estimates", width = 12, height = 10)
+scenario_levels <- expand_grid(
+  censoring = levels(res$censoring),
+  weight = levels(res$weight)
+) %>%
+  mutate(level = paste(censoring, weight, sep = ", ")) %>%
+  pull(level)
 
-cat("\n")
+ci <- res %>%
+  transmute(
+    parameter = factor(parameter, levels = c("alpha", "beta", "gamma")),
+    n_obs,
+    censoring,
+    weight,
+    method,
+    lower = q2.5,
+    upper = q97.5,
+    est = mean,
+    hit = contains_truth
+  ) %>%
+  filter(!is.na(lower), !is.na(upper), !is.na(est), !is.na(parameter)) %>%
+  mutate(
+    scenario = factor(
+      paste(censoring, weight, sep = ", "),
+      levels = scenario_levels
+    )
+  )
 
-# Summary Report ---------------------------------------------------------------
+truth <- res %>%
+  distinct(
+    parameter = factor(parameter, levels = c("alpha", "beta", "gamma")),
+    truth = true_value
+  ) %>%
+  drop_na(truth)
 
-cat(paste(rep("=", 78), collapse = ""), "\n")
-cat("Visualization Complete!\n")
-cat(paste(rep("=", 78), collapse = ""), "\n\n")
+truth_lines <- tidyr::crossing(
+  truth,
+  n_obs = levels(res$n_obs)
+)
 
-cat("Tables saved to results/tables/:\n")
-cat("  ✓ table1_overview.html/.csv\n")
-cat("  ✓ table2_convergence.html/.csv\n")
-cat("  ✓ table3_accuracy.html/.csv\n")
-cat("  ✓ table4_efficiency.html/.csv\n\n")
+p_ci <- ggplot(
+  ci,
+  aes(y = scenario, xmin = lower, xmax = upper, colour = method)
+) +
+  geom_errorbarh(
+    aes(alpha = hit),
+    height = 0.3,
+    position = position_dodge(width = 0.6),
+    linewidth = 0.6
+  ) +
+  geom_point(
+    aes(x = est, shape = method, alpha = hit),
+    position = position_dodge(width = 0.6),
+    size = 1.8,
+    stroke = 1
+  ) +
+  geom_vline(
+    data = truth_lines,
+    aes(xintercept = truth, linetype = "True value"),
+    colour = "grey30",
+    linewidth = 0.6
+  ) +
+  facet_grid(parameter ~ n_obs, scales = "free_y") +
+  scale_colour_manual(values = pal) +
+  scale_shape_manual(values = c(HMC = 19, MH = 2)) +
+  scale_linetype_manual(
+    values = c("True value" = "dashed"),
+    guide = guide_legend(
+      override.aes = list(colour = "grey30"),
+      order = 2,
+      title = ""
+    )
+  ) +
+  scale_alpha_manual(values = c(`TRUE` = 0.9, `FALSE` = 0.4), guide = "none") +
+  labs(
+    x = "Estimate / 95% CI",
+    y = "Scenario (Censoring, Weight)",
+    colour = "Method",
+    shape = "Method",
+    title = "Credible intervals vs true value"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    strip.text = element_text(face = "bold"),
+    axis.text.y = element_text(size = 8)
+  )
 
-cat("Figures saved to results/figures/:\n")
-cat("  ✓ fig1_convergence.png/.pdf\n")
-cat("  ✓ fig2_coverage.png/.pdf\n")
-cat("  ✓ fig3_bias_rmse.png/.pdf\n")
-cat("  ✓ fig4_efficiency.png/.pdf\n")
-cat("  ✓ fig5_runtime.png/.pdf\n")
-cat("  ✓ fig6_hmc_diagnostics.png/.pdf\n")
-cat("  ✓ fig7_estimates.png/.pdf\n\n")
+ci_sum <- ci %>%
+  mutate(
+    parameter = factor(parameter, levels = c("alpha", "beta", "gamma")),
+    n_obs = factor(
+      n_obs,
+      levels = c("n = 200", "n = 2000", "n = 10000")
+    ),
+    weight = factor(weight, levels = c("none", "low", "high")),
+    censoring = factor(
+      censoring,
+      levels = c("C=0.1", "C=0.3", "C=0.5")
+    ),
+    method = factor(method, levels = c("MH", "HMC")),
+    scenario = factor(
+      paste(censoring, weight, sep = ", "),
+      levels = scenario_levels
+    )
+  ) %>%
+  group_by(parameter, n_obs, method, scenario, censoring, weight) %>%
+  summarise(
+    lower = median(lower, na.rm = TRUE),
+    upper = median(upper, na.rm = TRUE),
+    est = median(est, na.rm = TRUE),
+    cover = mean(hit, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(parameter, n_obs, method, censoring, weight) %>%
+  group_by(parameter, n_obs, method) %>%
+  mutate(
+    scenario = forcats::fct_inorder(scenario),
+    cover_flag = factor(
+      if_else(cover >= 0.95, ">=95%", "<95%"),
+      levels = c(">=95%", "<95%")
+    )
+  ) %>%
+  ungroup()
+
+truth_panel <- expand_grid(
+  parameter = levels(ci_sum$parameter),
+  n_obs = levels(ci_sum$n_obs),
+  method = levels(ci_sum$method)
+) %>%
+  left_join(
+    truth %>% mutate(parameter = as.character(parameter)),
+    by = "parameter"
+  ) %>%
+  drop_na(truth)
+
+p_ci_matrix <- ggplot(
+  ci_sum,
+  aes(y = scenario, xmin = lower, xmax = upper, colour = method)
+) +
+  geom_errorbarh(
+    height = 0.25,
+    linewidth = 0.7
+  ) +
+  geom_point(
+    aes(x = est, shape = cover_flag),
+    size = 2.2,
+    fill = "white",
+    stroke = 0.6
+  ) +
+  geom_vline(
+    data = truth_panel,
+    mapping = aes(xintercept = truth),
+    colour = "grey40",
+    linetype = 2,
+    linewidth = 0.7
+  ) +
+  facet_grid(
+    rows = vars(parameter, n_obs),
+    cols = vars(method),
+    scales = "free_y"
+  ) +
+  scale_colour_manual(values = pal, drop = FALSE) +
+  scale_shape_manual(
+    values = c(">=95%" = 16, "<95%" = 1),
+    drop = FALSE,
+    name = "Coverage"
+  ) +
+  labs(
+    title = "Credible intervals vs true value by parameter, sample size, and method",
+    x = "Estimate / 95% CI",
+    y = "Scenario (Censoring, Weight)"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    panel.grid.minor = element_blank(),
+    strip.text = element_text(face = "bold"),
+    legend.position = "bottom",
+    axis.text.y = element_text(size = 8)
+  )
+
+ci_detail <- ci %>%
+  mutate(width = upper - lower)
+precision_summary <- ci_detail %>%
+  group_by(parameter, n_obs, scenario, method) %>%
+  summarise(
+    coverage = mean(hit, na.rm = TRUE),
+    R = dplyr::n(),
+    mcse = sqrt(pmax(coverage * (1 - coverage), 0) / R),
+    width_med = median(width, na.rm = TRUE),
+    width_se = sd(width, na.rm = TRUE) / sqrt(R),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    width_se = tidyr::replace_na(width_se, 0),
+    coverage_lo = coverage - 2 * mcse,
+    coverage_hi = coverage + 2 * mcse,
+    scenario = factor(scenario, levels = scenario_levels)
+  )
+p_precision_tradeoff <- ggplot(
+  precision_summary,
+  aes(x = width_med, y = coverage, colour = method, shape = method)
+) +
+  geom_hline(yintercept = 0.95, colour = "grey60", linetype = 3) +
+  geom_errorbar(
+    aes(ymin = coverage_lo, ymax = coverage_hi),
+    linewidth = 0.4,
+    width = 0
+  ) +
+  geom_errorbarh(
+    aes(xmin = width_med - width_se, xmax = width_med + width_se),
+    linewidth = 0.4,
+    height = 0.08
+  ) +
+  geom_point(size = 2) +
+  facet_grid(parameter ~ n_obs) +
+  scale_colour_manual(values = pal) +
+  labs(
+    x = "Median CI width",
+    y = "Coverage",
+    colour = "Method",
+    shape = "Method",
+    title = "Precision–coverage trade-off"
+  ) +
+  theme_sci +
+  theme(legend.position = "bottom")
+coverage_heatmap <- precision_summary %>%
+  mutate(
+    coverage_bias = coverage - 0.95,
+    panel_id = interaction(parameter, n_obs, sep = " | ")
+  )
+p_coverage_heatmap <- ggplot(
+  coverage_heatmap,
+  aes(x = scenario, y = panel_id, fill = coverage_bias)
+) +
+  geom_tile(colour = "white") +
+  facet_wrap(~method, nrow = 1) +
+  scale_fill_gradient2(
+    limits = c(-0.1, 0.1),
+    oob = scales::squish,
+    low = "#B2182B",
+    mid = "#f7f7f7",
+    high = "#2166AC",
+    midpoint = 0,
+    name = "Bias"
+  ) +
+  labs(
+    x = "Scenario (Censoring, Weight)",
+    y = "Parameter | Sample size",
+    title = "Global bias in coverage"
+  ) +
+  theme_sci +
+  theme(
+    axis.text.x = element_text(angle = 35, hjust = 1),
+    legend.position = "right"
+  )
+p_ci_width_violin <- ggplot(
+  ci_detail,
+  aes(x = method, y = width, fill = method)
+) +
+  geom_violin(trim = FALSE, alpha = 0.7) +
+  stat_summary(
+    fun = median,
+    geom = "point",
+    colour = "black",
+    size = 1
+  ) +
+  facet_grid(parameter ~ n_obs) +
+  scale_fill_manual(values = pal) +
+  labs(
+    x = NULL,
+    y = "CI width",
+    fill = "Method",
+    title = "Distribution of credible interval widths"
+  ) +
+  theme_sci +
+  theme(legend.position = "bottom")
+
+save_fig <- function(p, file, w = 8, h = 4, dpi = 320) {
+  ggsave(
+    filename = file,
+    plot = p,
+    width = w,
+    height = h,
+    dpi = dpi,
+    bg = "white"
+  )
+}
+
+save_fig(p1a, "results/figures/fig1a_rhat_ecdf.png", w = 9, h = 3.2)
+save_fig(p1b, "results/figures/fig1b_ess_ridges.png", w = 9, h = 3.2)
+save_fig(p2, "results/figures/fig2_coverage.png", w = 10, h = 6)
+save_fig(p3_bias, "results/figures/fig3a_bias.png", w = 9, h = 6)
+save_fig(p3_rmse, "results/figures/fig3b_rmse.png", w = 9, h = 6)
+save_fig(p4, "results/figures/fig4_ess_per_sec.png", w = 9, h = 3.2)
+save_fig(p5, "results/figures/fig5_runtime.png", w = 10, h = 6)
+save_fig(p7, "results/figures/fig7_means_agreement.png", w = 9, h = 6)
+save_fig(p_ci, "results/figures/figA1_cis_vs_truth.png", w = 11, h = 7)
+save_fig(p_ci_matrix, "results/figures/figA2_ci_matrix.png", w = 10, h = 12)
+save_fig(
+  p_precision_tradeoff,
+  "results/figures/figB1_precision_tradeoff.png",
+  w = 10,
+  h = 6
+)
+save_fig(
+  p_coverage_heatmap,
+  "results/figures/figB2_coverage_bias_heatmap.png",
+  w = 10,
+  h = 5
+)
+save_fig(
+  p_ci_width_violin,
+  "results/figures/figB3_ci_width_violin.png",
+  w = 9,
+  h = 6
+)
