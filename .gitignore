@@ -7,11 +7,16 @@
 *.Rproj
 
 # Large data directories (exclude from git)
-/sim_data             # Raw simulation data (705 MB)
-/mcmc_outputs         # MCMC fitted models (82 MB)
-/outputs              # Analysis results (figures, tables)
-/data                 # Combined datasets (21.5 MB)
-/compiled_models      # Compiled Stan models (platform-specific)
+sim_data/**           # Raw simulation data (705 MB)
+sim_data/
+mcmc_outputs/**       # MCMC fitted models (82 MB)
+mcmc_outputs/
+outputs/**            # Analysis results (figures, tables)
+outputs/
+data/**               # Combined datasets (21.5 MB)
+data/
+compiled_models/**    # Compiled Stan models (platform-specific)
+compiled_models/
 
 # Documentation drafts (optional)
 /ADEMP_Audit.md
