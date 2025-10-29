@@ -256,7 +256,7 @@ table3_data <- scenario_summaries %>%
   mutate(
     method = factor(method, levels = c("hmc", "mh"), labels = c("HMC", "MH")),
     parameter = factor(variable, levels = c("alpha", "beta", "gamma"),
-                      labels = c("α", "β", "γ"))
+                      labels = c("alpha", "beta", "gamma"))
   )
 
 table3 <- table3_data %>%
@@ -450,7 +450,7 @@ coverage_data <- scenario_summaries %>%
   mutate(
     variable_label = factor(variable,
                            levels = c("alpha", "beta", "gamma"),
-                           labels = c("α (Scale)", "β (AFT Coef.)", "γ (Shape)")),
+                           labels = c("alpha (Scale)", "beta (AFT Coef.)", "gamma (Shape)")),
     scenario_label_short = paste0("c", censoring, "_", weight_type),
     n_obs_label = paste0("n = ", n_obs)
   )
@@ -502,7 +502,7 @@ fig3a <- scenario_summaries %>%
   mutate(
     variable_label = factor(variable,
                            levels = c("alpha", "beta", "gamma"),
-                           labels = c("α", "β", "γ"))
+                           labels = c("alpha", "beta", "gamma"))
   ) %>%
   ggplot(aes(x = variable_label, y = bias, fill = method)) +
   geom_violin(position = position_dodge(width = 0.8), alpha = 0.7, trim = FALSE) +
@@ -527,7 +527,7 @@ fig3b <- scenario_summaries %>%
   mutate(
     variable_label = factor(variable,
                            levels = c("alpha", "beta", "gamma"),
-                           labels = c("α", "β", "γ"))
+                           labels = c("alpha", "beta", "gamma"))
   ) %>%
   ggplot(aes(x = variable_label, y = rmse, fill = method)) +
   geom_violin(position = position_dodge(width = 0.8), alpha = 0.7, trim = FALSE) +
@@ -673,7 +673,7 @@ fig7 <- fig7_data %>%
   mutate(
     variable_label = factor(variable,
                            levels = c("alpha", "beta", "gamma"),
-                           labels = c("α (True = 5.0)", "β (True = -0.5)", "γ (True = 1.5)")),
+                           labels = c("alpha (True = 5.0)", "beta (True = -0.5)", "gamma (True = 1.5)")),
     n_obs_label = paste0("n = ", n_obs)
   ) %>%
   ggplot(aes(x = mean_hmc, y = mean_mh)) +

@@ -48,13 +48,13 @@ TRUE_VALUES <- list(
 # Study design constants (fixed expected counts)
 STUDY_DESIGN <- list(
   replicates_per_scenario = 200,
-  scenarios_per_n = 9,  # 3 censoring × 3 weight types
-  datasets_per_n = 1800,  # 9 scenarios × 200 replicates
-  total_datasets = 5400,  # 27 scenarios × 200 replicates
+  scenarios_per_n = 9, # 3 censoring × 3 weight types
+  datasets_per_n = 1800, # 9 scenarios × 200 replicates
+  total_datasets = 5400, # 27 scenarios × 200 replicates
   scenarios_total = 27,
   sample_sizes = c(200, 2000, 10000),
   censoring_levels = c(0.1, 0.3, 0.5),
-  weight_types = c("high", "low", "none")
+  weight_types = c("none", "low", "high")
 )
 
 # Helper Functions ------------------------------------------------------------
@@ -358,10 +358,10 @@ cat("\nConvergence Rates:\n")
 convergence_summary <- combined_diagnostics %>%
   group_by(method, n_obs) %>%
   summarise(
-    expected = STUDY_DESIGN$datasets_per_n,  # Use constant
+    expected = STUDY_DESIGN$datasets_per_n, # Use constant
     observed = n(),
     converged = sum(converged),
-    pct_converged = 100 * (converged / expected),  # % of expected
+    pct_converged = 100 * (converged / expected), # % of expected
     .groups = "drop"
   )
 
@@ -373,7 +373,7 @@ cat("\nExpected vs Actual Fits (per sample size):\n")
 missing_summary <- combined_diagnostics %>%
   count(method, n_obs) %>%
   mutate(
-    expected = STUDY_DESIGN$datasets_per_n,  # Use constant
+    expected = STUDY_DESIGN$datasets_per_n, # Use constant
     missing = expected - n,
     pct_complete = 100 * (n / expected)
   )
