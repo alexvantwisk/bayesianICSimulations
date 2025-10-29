@@ -7,8 +7,6 @@
 *.Rproj
 
 # Large data directories (exclude from git)
-sim_data/**           # Raw simulation data (705 MB)
-sim_data/
 mcmc_outputs/**       # MCMC fitted models (82 MB)
 mcmc_outputs/
 outputs/**            # Analysis results (figures, tables)
