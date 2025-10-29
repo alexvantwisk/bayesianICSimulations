@@ -195,7 +195,9 @@ qsub -J 42,105,237 inst/hpc/submit_n200.pbs   # Specific tasks
 
 ## Analysis Pipeline
 
-After model fits complete, run the analysis scripts sequentially:
+After model fits complete, you can run the analysis in two ways:
+
+### Option 1: Run Scripts (Recommended for batch processing)
 
 ```bash
 # Step 1: Combine all results
@@ -208,13 +210,37 @@ Rscript inst/scripts/02_analysis.R
 Rscript inst/scripts/03_visualization.R
 ```
 
-Or in R:
+### Option 2: Use Package Functions (Recommended for interactive analysis)
 
 ```r
-# Set working directory to package root
-source("inst/scripts/01_combine_results.R")
-source("inst/scripts/02_analysis.R")
-source("inst/scripts/03_visualization.R")
+library(bayesianICSimulations)
+
+# Step 1: Combine results
+results <- combine_results(
+  results_dir = "mcmc_outputs",
+  data_dir = "data",
+  verbose = TRUE
+)
+
+# Step 2: Perform statistical analysis
+analysis <- perform_statistical_analysis(
+  data_dir = "data",
+  output_dir = "outputs/analysis",
+  verbose = TRUE
+)
+
+# Step 3: Generate all figures
+plots <- save_all_figures(
+  data_dir = "data",
+  output_dir = "outputs/figures",
+  dpi = 320
+)
+
+# Or create individual figures
+fig2 <- create_figure2_coverage(prepare_plot_data("data"))
+fig2 # Display in RStudio
+# Customize and save
+ggsave("my_custom_coverage.png", fig2, width = 10, height = 6)
 ```
 
 ## Package Structure
@@ -222,8 +248,11 @@ source("inst/scripts/03_visualization.R")
 ```
 bayesianICSimulations/
 ├── R/                          # Package functions
-│   ├── fitting_hmc.R           # HMC model fitting
-│   ├── fitting_mh.R            # MH model fitting
+│   ├── fitting_hmc.R           # HMC model fitting (fit_logistic_hmc)
+│   ├── fitting_mh.R            # MH model fitting (fit_logistic_mh)
+│   ├── combine_results.R       # Data combination pipeline
+│   ├── analysis_pipeline.R     # Statistical analysis (perform_statistical_analysis)
+│   ├── figures.R               # All 13 figure creation functions
 │   ├── data_loading.R          # Result loading and parsing
 │   ├── analysis_mcse.R         # MCSE calculations
 │   ├── analysis_stats.R        # Statistical tests
@@ -234,10 +263,10 @@ bayesianICSimulations/
 │   ├── models/                 # Stan and JAGS models
 │   │   ├── loglogistic_interval.stan
 │   │   └── loglogistic_interval.jags
-│   ├── scripts/                # Analysis pipeline
-│   │   ├── 01_combine_results.R
-│   │   ├── 02_analysis.R
-│   │   ├── 03_visualization.R
+│   ├── scripts/                # Convenience wrapper scripts
+│   │   ├── 01_combine_results.R      # Calls combine_results()
+│   │   ├── 02_analysis.R             # Calls perform_statistical_analysis()
+│   │   ├── 03_visualization.R        # Calls save_all_figures()
 │   │   ├── run_fits.R
 │   │   └── example_usage.R
 │   ├── hpc/                    # HPC submission scripts
