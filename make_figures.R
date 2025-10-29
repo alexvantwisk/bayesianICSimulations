@@ -20,6 +20,7 @@ res <- res %>%
     weight = weight_type,
     runtime_summary = total_time
   ) %>%
+  filter(parameter %in% c("alpha", "beta", "gamma")) %>%
   mutate(method = std_method(method))
 
 diagnostics <- diagnostics %>%

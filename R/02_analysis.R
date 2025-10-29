@@ -50,7 +50,8 @@ cat(paste(rep("=", 78), collapse = ""), "\n\n")
 # Load Data --------------------------------------------------------------------
 cat("Loading processed data...\n")
 
-combined_summaries <- readRDS(file.path(data_dir, "combined_summaries.rds"))
+combined_summaries <- readRDS(file.path(data_dir, "combined_summaries.rds")) %>%
+  dplyr::filter(variable %in% c("alpha", "beta", "gamma"))
 combined_diagnostics <- readRDS(file.path(data_dir, "combined_diagnostics.rds"))
 scenario_metadata <- readRDS(file.path(data_dir, "scenario_metadata.rds"))
 study_design <- readRDS(file.path(data_dir, "study_design.rds"))
@@ -58,8 +59,10 @@ study_design <- readRDS(file.path(data_dir, "study_design.rds"))
 cat(sprintf("  ✓ Loaded %d summary records\n", nrow(combined_summaries)))
 cat(sprintf("  ✓ Loaded %d diagnostic records\n", nrow(combined_diagnostics)))
 cat(sprintf("  ✓ Loaded %d scenarios\n", nrow(scenario_metadata)))
-cat(sprintf("  ✓ Loaded study design (expected: %d replicates/scenario)\n\n",
-            study_design$replicates_per_scenario))
+cat(sprintf(
+  "  ✓ Loaded study design (expected: %d replicates/scenario)\n\n",
+  study_design$replicates_per_scenario
+))
 
 # MCSE Calculation Functions ---------------------------------------------------
 
@@ -125,14 +128,14 @@ cat("1. Analyzing convergence diagnostics...\n")
 convergence_analysis <- combined_diagnostics %>%
   group_by(method, n_obs, scenario_id, censoring, weight_type) %>%
   summarise(
-    n_observed = n(),  # Actual observations present
-    n_expected = study_design$replicates_per_scenario,  # FIXED: Always 200
+    n_observed = n(), # Actual observations present
+    n_expected = study_design$replicates_per_scenario, # FIXED: Always 200
     n_missing = n_expected - n_observed,
     n_converged = sum(converged, na.rm = TRUE),
     n_rhat_ok = sum(rhat_ok, na.rm = TRUE),
     n_ess_ok = sum(ess_ok, na.rm = TRUE),
-    pct_converged = 100 * (n_converged / n_expected),  # FIXED: % of expected
-    pct_complete = 100 * (n_observed / n_expected),  # NEW: Completion rate
+    pct_converged = 100 * (n_converged / n_expected), # FIXED: % of expected
+    pct_complete = 100 * (n_observed / n_expected), # NEW: Completion rate
     mean_rhat = mean(max_rhat, na.rm = TRUE),
     median_rhat = median(max_rhat, na.rm = TRUE),
     max_rhat_obs = max(max_rhat, na.rm = TRUE),
@@ -141,7 +144,10 @@ convergence_analysis <- combined_diagnostics %>%
     min_ess_obs = min(min_ess, na.rm = TRUE),
     .groups = "drop"
   ) %>%
-  left_join(scenario_metadata, by = c("scenario_id", "n_obs", "censoring", "weight_type"))
+  left_join(
+    scenario_metadata,
+    by = c("scenario_id", "n_obs", "censoring", "weight_type")
+  )
 
 # Add HMC-specific convergence issues
 hmc_issues <- combined_diagnostics %>%
@@ -155,7 +161,10 @@ hmc_issues <- combined_diagnostics %>%
   )
 
 convergence_analysis <- convergence_analysis %>%
-  left_join(hmc_issues, by = c("scenario_id", "n_obs", "censoring", "weight_type"))
+  left_join(
+    hmc_issues,
+    by = c("scenario_id", "n_obs", "censoring", "weight_type")
+  )
 
 cat(sprintf(
   "  ✓ Convergence analysis complete for %d scenarios\n",
@@ -168,11 +177,11 @@ overall_convergence <- combined_diagnostics %>%
   group_by(method) %>%
   summarise(
     n_observed = n(),
-    n_expected = study_design$total_datasets,  # FIXED: Always 3600
+    n_expected = study_design$total_datasets, # FIXED: Always 3600
     n_missing = n_expected - n_observed,
     converged = sum(converged, na.rm = TRUE),
     pct_observed = 100 * (n_observed / n_expected),
-    pct_converged = 100 * (converged / n_expected)  # FIXED: % of expected
+    pct_converged = 100 * (converged / n_expected) # FIXED: % of expected
   )
 print(overall_convergence)
 
@@ -201,7 +210,10 @@ efficiency_analysis <- combined_diagnostics %>%
     n = n(),
     .groups = "drop"
   ) %>%
-  left_join(scenario_metadata, by = c("scenario_id", "n_obs", "censoring", "weight_type"))
+  left_join(
+    scenario_metadata,
+    by = c("scenario_id", "n_obs", "censoring", "weight_type")
+  )
 
 cat(sprintf(
   "  ✓ Efficiency analysis complete for %d scenarios\n",
@@ -246,8 +258,8 @@ cat("\n3. Analyzing posterior accuracy (bias, RMSE, coverage)...\n")
 accuracy_all <- combined_summaries %>%
   group_by(method, n_obs, scenario_id, censoring, weight_type, variable) %>%
   summarise(
-    n_observed = n(),  # Actual replicates present
-    n_expected = study_design$replicates_per_scenario,  # FIXED: Always 200
+    n_observed = n(), # Actual replicates present
+    n_expected = study_design$replicates_per_scenario, # FIXED: Always 200
 
     # Bias and RMSE (using observed data but expected n for MCSE)
     {
@@ -259,18 +271,24 @@ accuracy_all <- combined_summaries %>%
       # Use expected n for MCSE, not observed n (FIXED)
       tibble(
         bias = mean(errors),
-        bias_mcse = if (n_actual > 1) sd(errors) / sqrt(n_expected) else NA_real_,
+        bias_mcse = if (n_actual > 1) {
+          sd(errors) / sqrt(n_expected)
+        } else {
+          NA_real_
+        },
         rmse = sqrt(mean(errors^2)),
         rmse_mcse = if (n_actual > 1) {
           sd((errors^2 - sqrt(mean(errors^2))^2)) /
             (2 * sqrt(mean(errors^2)) * sqrt(n_expected))
-        } else NA_real_
+        } else {
+          NA_real_
+        }
       )
     },
 
     # Coverage (use expected n for MCSE)
     coverage = mean(contains_truth, na.rm = TRUE),
-    coverage_mcse = sqrt(coverage * (1 - coverage) / n_expected),  # FIXED
+    coverage_mcse = sqrt(coverage * (1 - coverage) / n_expected), # FIXED
 
     # Credible interval width
     mean_ci_width = mean(ci_width, na.rm = TRUE),
@@ -283,13 +301,28 @@ accuracy_all <- combined_summaries %>%
 accuracy_converged <- combined_summaries %>%
   left_join(
     combined_diagnostics %>%
-      select(method, scenario_id, replicate, n_obs, censoring, weight_type, converged),
-    by = c("method", "scenario_id", "replicate", "n_obs", "censoring", "weight_type")
+      select(
+        method,
+        scenario_id,
+        replicate,
+        n_obs,
+        censoring,
+        weight_type,
+        converged
+      ),
+    by = c(
+      "method",
+      "scenario_id",
+      "replicate",
+      "n_obs",
+      "censoring",
+      "weight_type"
+    )
   ) %>%
   filter(converged) %>%
   group_by(method, n_obs, scenario_id, censoring, weight_type, variable) %>%
   summarise(
-    n_converged_obs = n(),  # Actual converged observations
+    n_converged_obs = n(), # Actual converged observations
     # Note: n_expected will come from accuracy_all join, no need to duplicate
 
     # Bias and RMSE (converged only, but use expected n for MCSE)
@@ -298,27 +331,33 @@ accuracy_converged <- combined_summaries %>%
       truth <- first(true_value)
       errors <- estimates - truth
       n_actual <- length(estimates)
-      n_exp <- study_design$replicates_per_scenario  # Local variable
+      n_exp <- study_design$replicates_per_scenario # Local variable
 
       # Use expected n for MCSE, not actual converged (FIXED)
       tibble(
         bias_converged = mean(errors),
-        bias_mcse_converged = if (n_actual > 1) sd(errors) / sqrt(n_exp) else NA_real_,
+        bias_mcse_converged = if (n_actual > 1) {
+          sd(errors) / sqrt(n_exp)
+        } else {
+          NA_real_
+        },
         rmse_converged = sqrt(mean(errors^2)),
         rmse_mcse_converged = if (n_actual > 1) {
           sd((errors^2 - sqrt(mean(errors^2))^2)) /
             (2 * sqrt(mean(errors^2)) * sqrt(n_exp))
-        } else NA_real_
+        } else {
+          NA_real_
+        }
       )
     },
 
     # Coverage (converged only, use expected n for MCSE)
     {
-      n_exp <- study_design$replicates_per_scenario  # Local variable
+      n_exp <- study_design$replicates_per_scenario # Local variable
       cov <- mean(contains_truth, na.rm = TRUE)
       tibble(
         coverage_converged = cov,
-        coverage_mcse_converged = sqrt(cov * (1 - cov) / n_exp)  # FIXED
+        coverage_mcse_converged = sqrt(cov * (1 - cov) / n_exp) # FIXED
       )
     },
 
@@ -332,9 +371,19 @@ accuracy_converged <- combined_summaries %>%
 accuracy_analysis <- accuracy_all %>%
   left_join(
     accuracy_converged,
-    by = c("method", "n_obs", "scenario_id", "censoring", "weight_type", "variable")
+    by = c(
+      "method",
+      "n_obs",
+      "scenario_id",
+      "censoring",
+      "weight_type",
+      "variable"
+    )
   ) %>%
-  left_join(scenario_metadata, by = c("scenario_id", "n_obs", "censoring", "weight_type")) %>%
+  left_join(
+    scenario_metadata,
+    by = c("scenario_id", "n_obs", "censoring", "weight_type")
+  ) %>%
   mutate(
     # Exclusion rate: (expected - converged) / expected (FIXED)
     n_failed = n_expected - n_converged_obs,
@@ -367,7 +416,15 @@ cat("\n4. Performing statistical tests (HMC vs MH)...\n")
 
 # Prepare paired data for ESS/sec
 paired_ess <- combined_diagnostics %>%
-  select(method, scenario_id, replicate, n_obs, censoring, weight_type, mean_ess_per_sec) %>%
+  select(
+    method,
+    scenario_id,
+    replicate,
+    n_obs,
+    censoring,
+    weight_type,
+    mean_ess_per_sec
+  ) %>%
   pivot_wider(
     names_from = method,
     values_from = mean_ess_per_sec,
@@ -377,7 +434,16 @@ paired_ess <- combined_diagnostics %>%
 
 # Prepare paired data for bias (by parameter)
 paired_bias <- combined_summaries %>%
-  select(method, scenario_id, replicate, n_obs, censoring, weight_type, variable, error) %>%
+  select(
+    method,
+    scenario_id,
+    replicate,
+    n_obs,
+    censoring,
+    weight_type,
+    variable,
+    error
+  ) %>%
   pivot_wider(
     names_from = method,
     values_from = error,
@@ -477,9 +543,9 @@ scenario_summaries <- accuracy_analysis %>%
         censoring,
         weight_type,
         # Note: n_observed and n_expected already in accuracy_analysis, so skip them
-        n_missing,       # NEW
-        pct_complete,    # NEW
-        n_converged_diag = n_converged,  # Rename to avoid ambiguity
+        n_missing,
+        pct_complete,
+        n_converged_diag = n_converged, # Rename to avoid ambiguity
         pct_converged,
         mean_rhat,
         mean_ess,
@@ -513,14 +579,14 @@ scenario_summaries <- accuracy_analysis %>%
     variable,
 
     # Sample sizes (UPDATED column names)
-    n_observed,       # Actual replicates present (from accuracy_all)
-    n_expected,       # Expected replicates (200) (from accuracy_all)
-    n_missing,        # Missing replicates (from convergence_analysis)
-    pct_complete,     # % of expected that are present (from convergence_analysis)
-    n_converged_obs,  # Actual converged (from accuracy_converged)
-    pct_converged,    # % of expected that converged (from convergence_analysis)
-    n_failed,         # Expected - converged (calculated in accuracy_analysis)
-    exclusion_rate,   # % failed or missing (calculated in accuracy_analysis)
+    n_observed, # Actual replicates present (from accuracy_all)
+    n_expected, # Expected replicates (200) (from accuracy_all)
+    n_missing, # Missing replicates (from convergence_analysis)
+    pct_complete, # % of expected that are present (from convergence_analysis)
+    n_converged_obs, # Actual converged (from accuracy_converged)
+    pct_converged, # % of expected that converged (from convergence_analysis)
+    n_failed, # Expected - converged (calculated in accuracy_analysis)
+    exclusion_rate, # % failed or missing (calculated in accuracy_analysis)
 
     # Convergence
     mean_rhat,
