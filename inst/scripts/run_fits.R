@@ -99,7 +99,7 @@ if (!sample_size %in% c(200, 2000, 10000)) {
 # Setup paths
 base_dir <- getwd()
 sim_dir <- file.path(base_dir, data_dir, paste0("n", sample_size))
-results_root <- get_env_char("RUN_FITS_RESULTS_DIR", "results")
+results_root <- get_env_char("RUN_FITS_RESULTS_DIR", "mcmc_outputs")
 results_base <- file.path(base_dir, results_root, paste0("n", sample_size))
 stan_model_file <- file.path(base_dir, "loglogistic_interval.stan")
 jags_model_file <- file.path(base_dir, "loglogistic_interval.jags")
