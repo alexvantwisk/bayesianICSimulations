@@ -5,7 +5,7 @@
 #' Methods, Performance measures).
 #'
 #' @param data_dir Character string. Path to directory containing combined
-#'   datasets from \code{\link{combine_results}}. Default: "data"
+#'   datasets from \code{\link{combine_results}}. Default: "outputs/combined_results"
 #' @param output_dir Character string. Path to directory where analysis results
 #'   will be saved. Default: "outputs/analysis"
 #' @param verbose Logical. Print progress messages? Default: TRUE
@@ -43,7 +43,7 @@
 #'
 #' # Custom directories
 #' analysis <- perform_statistical_analysis(
-#'   data_dir = "my_data",
+#'   data_dir = "my_outputs/combined",
 #'   output_dir = "my_outputs/analysis"
 #' )
 #'
@@ -53,7 +53,7 @@
 #' }
 #'
 #' @export
-perform_statistical_analysis <- function(data_dir = "data",
+perform_statistical_analysis <- function(data_dir = "outputs/combined_results",
                                           output_dir = "outputs/analysis",
                                           verbose = TRUE) {
   # Load required packages

@@ -218,26 +218,26 @@ library(bayesianICSimulations)
 # Step 1: Combine results
 results <- combine_results(
   results_dir = "mcmc_outputs",
-  data_dir = "data",
+  data_dir = "outputs/combined_results",
   verbose = TRUE
 )
 
 # Step 2: Perform statistical analysis
 analysis <- perform_statistical_analysis(
-  data_dir = "data",
+  data_dir = "outputs/combined_results",
   output_dir = "outputs/analysis",
   verbose = TRUE
 )
 
 # Step 3: Generate all figures
 plots <- save_all_figures(
-  data_dir = "data",
+  data_dir = "outputs/combined_results",
   output_dir = "outputs/figures",
   dpi = 320
 )
 
 # Or create individual figures
-fig2 <- create_figure2_coverage(prepare_plot_data("data"))
+fig2 <- create_figure2_coverage(prepare_plot_data("outputs/combined_results"))
 fig2 # Display in RStudio
 # Customize and save
 ggsave("my_custom_coverage.png", fig2, width = 10, height = 6)

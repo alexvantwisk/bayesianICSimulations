@@ -3,7 +3,7 @@
 #' Generate and save all 13 publication-ready figures for HMC vs MH comparison.
 #'
 #' @param data_dir Character string. Path to directory containing combined datasets.
-#'   Default: "data"
+#'   Default: "outputs/combined_results"
 #' @param output_dir Character string. Path to directory where figures will be saved.
 #'   Default: "outputs/figures"
 #' @param width Numeric. Default figure width in inches. Default: 8
@@ -38,6 +38,7 @@
 #'
 #' # Custom settings
 #' plots <- save_all_figures(
+#'   data_dir = "my_outputs/combined",
 #'   output_dir = "my_figures",
 #'   width = 10,
 #'   height = 8,
@@ -46,7 +47,7 @@
 #' }
 #'
 #' @export
-save_all_figures <- function(data_dir = "data",
+save_all_figures <- function(data_dir = "outputs/combined_results",
                               output_dir = "outputs/figures",
                               width = 8,
                               height = 6,

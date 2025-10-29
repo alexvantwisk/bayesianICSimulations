@@ -7,7 +7,7 @@
 #'   n{200,2000,10000}/{hmc,mh}/{summaries,diagnostics}/*.rds files.
 #'   Default: "mcmc_outputs"
 #' @param data_dir Character string. Path to directory where combined datasets
-#'   will be saved. Default: "data"
+#'   will be saved. Default: "outputs/combined_results"
 #' @param verbose Logical. Print progress messages? Default: TRUE
 #'
 #' @return Invisibly returns a list with four elements:
@@ -24,7 +24,7 @@
 #'   \item Parses metadata from filenames (scenario, replicate, n, censoring, weights)
 #'   \item Calculates error metrics (bias, RMSE, coverage, CI width)
 #'   \item Adds convergence flags (Rhat ≤ 1.01 & ESS ≥ 400)
-#'   \item Saves four files to data_dir:
+#'   \item Saves four files to data_dir (default: outputs/combined_results/):
 #'     - combined_summaries.rds
 #'     - combined_diagnostics.rds
 #'     - scenario_metadata.rds/csv
@@ -46,7 +46,7 @@
 #' # Custom directories
 #' results <- combine_results(
 #'   results_dir = "my_mcmc_outputs",
-#'   data_dir = "my_data"
+#'   data_dir = "my_outputs/combined"
 #' )
 #'
 #' # Access combined data
@@ -56,7 +56,7 @@
 #'
 #' @export
 combine_results <- function(results_dir = "mcmc_outputs",
-                             data_dir = "data",
+                             data_dir = "outputs/combined_results",
                              verbose = TRUE) {
   # Load required packages
   if (!requireNamespace("tidyverse", quietly = TRUE)) {
@@ -246,11 +246,11 @@ combine_results <- function(results_dir = "mcmc_outputs",
     cat("Data combination complete!\n")
     cat(paste(rep("=", 78), collapse = ""), "\n\n")
     cat("Output files:\n")
-    cat("  - data/combined_summaries.rds\n")
-    cat("  - data/combined_diagnostics.rds\n")
-    cat("  - data/scenario_metadata.rds\n")
-    cat("  - data/scenario_metadata.csv\n")
-    cat("  - data/study_design.rds\n\n")
+    cat(sprintf("  - %s/combined_summaries.rds\n", data_dir))
+    cat(sprintf("  - %s/combined_diagnostics.rds\n", data_dir))
+    cat(sprintf("  - %s/scenario_metadata.rds\n", data_dir))
+    cat(sprintf("  - %s/scenario_metadata.csv\n", data_dir))
+    cat(sprintf("  - %s/study_design.rds\n\n", data_dir))
   }
 
   # Return results invisibly

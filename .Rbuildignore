@@ -1,11 +1,9 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
-^data-raw$
 ^CLAUDE\.md$
 ^\.git$
 ^\.gitignore$
 ^logs$
-^sim_data$
 ^data$
 ^submit_to_hpc$
 ^batchtools\.pbs\.tmpl$
@@ -17,7 +15,7 @@
 ^figures$
 ^MSc_Protocol_Final\.pdf$
 ^Rplots\.pdf$
-^download_wlow\.sh$
-^ADEMP_Audit\.md$
+^test_mcmc_outputs$
+^REORGANIZATION_SUMMARY\.md$
 ^AGENTS\.md$
 ^PACKAGE_SUMMARY\.md$

@@ -27,7 +27,7 @@ if (file.exists("results") && file.exists("analysis_scripts")) {
   # Default to current directory
   base_dir <- getwd()
 }
-data_dir <- file.path(base_dir, "data")
+data_dir <- file.path(base_dir, "outputs", "combined_results")
 output_dir <- file.path(base_dir, "outputs", "figures")
 
 # Generate and save all figures ------------------------------------------------
