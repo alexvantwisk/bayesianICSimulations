@@ -29,7 +29,7 @@ combine_results(
 \code{list(alpha = 5.0, beta = -0.5, gamma = 1.5)}.}
 
 \item{data_dir}{Character string. Path to directory where combined datasets
-will be saved. Default: "data"}
+will be saved. Default: "outputs/combined_results"}
 
 \item{verbose}{Logical. Print progress messages? Default: TRUE}
 }
@@ -63,7 +63,7 @@ This function:
 \item Parses metadata from filenames (scenario, replicate, n, censoring, weights)
 \item Calculates error metrics (bias, RMSE, coverage, CI width)
 \item Adds convergence flags (Rhat ≤ 1.01 & ESS ≥ 400)
-\item Saves four files to data_dir:
+\item Saves four files to data_dir (default: outputs/combined_results/):
 - combined_summaries.rds
 - combined_diagnostics.rds
 - scenario_metadata.rds/csv
@@ -85,7 +85,7 @@ results <- combine_results()
 # Custom directories
 results <- combine_results(
   results_dir = "my_mcmc_outputs",
-  data_dir = "my_data"
+  data_dir = "my_outputs/combined"
 )
 
 # Access combined data

@@ -5,7 +5,7 @@
 \title{Create All Publication Figures}
 \usage{
 save_all_figures(
-  data_dir = "data",
+  data_dir = "outputs/combined_results",
   output_dir = "outputs/figures",
   width = 8,
   height = 6,
@@ -15,7 +15,7 @@ save_all_figures(
 }
 \arguments{
 \item{data_dir}{Character string. Path to directory containing combined datasets.
-Default: "data"}
+Default: "outputs/combined_results"}
 
 \item{output_dir}{Character string. Path to directory where figures will be saved.
 Default: "outputs/figures"}
@@ -59,6 +59,7 @@ plots <- save_all_figures()
 
 # Custom settings
 plots <- save_all_figures(
+  data_dir = "my_outputs/combined",
   output_dir = "my_figures",
   width = 10,
   height = 8,

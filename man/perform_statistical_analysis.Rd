@@ -5,14 +5,14 @@
 \title{Perform Statistical Analysis of HMC vs MH Results}
 \usage{
 perform_statistical_analysis(
-  data_dir = "data",
+  data_dir = "outputs/combined_results",
   output_dir = "outputs/analysis",
   verbose = TRUE
 )
 }
 \arguments{
 \item{data_dir}{Character string. Path to directory containing combined
-datasets from \code{\link{combine_results}}. Default: "data"}
+datasets from \code{\link{combine_results}}. Default: "outputs/combined_results"}
 
 \item{output_dir}{Character string. Path to directory where analysis results
 will be saved. Default: "outputs/analysis"}
@@ -56,7 +56,7 @@ analysis <- perform_statistical_analysis()
 
 # Custom directories
 analysis <- perform_statistical_analysis(
-  data_dir = "my_data",
+  data_dir = "my_outputs/combined",
   output_dir = "my_outputs/analysis"
 )
 
