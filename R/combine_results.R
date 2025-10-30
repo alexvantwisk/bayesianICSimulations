@@ -25,8 +25,8 @@
 #'   \item Calculates error metrics (bias, RMSE, coverage, CI width)
 #'   \item Adds convergence flags (Rhat ≤ 1.01 & ESS ≥ 400)
 #'   \item Saves four files to data_dir (default: outputs/combined_results/):
-#'     - combined_summaries.rds
-#'     - combined_diagnostics.rds
+#'     - combined_summaries.rds/csv
+#'     - combined_diagnostics.rds/csv
 #'     - scenario_metadata.rds/csv
 #'     - study_design.rds
 #' }
@@ -55,24 +55,21 @@
 #' }
 #'
 #' @export
-combine_results <- function(results_dir = "mcmc_outputs",
-                             data_dir = "outputs/combined_results",
-                             verbose = TRUE) {
+combine_results <- function(
+  results_dir = "mcmc_outputs",
+  data_dir = file.path("outputs", "combined_results"),
+  verbose = TRUE
+) {
   # Load required packages
   if (!requireNamespace("tidyverse", quietly = TRUE)) {
     stop("Package 'tidyverse' is required but not installed.")
   }
-  if (!requireNamespace("progressr", quietly = TRUE)) {
-    stop("Package 'progressr' is required but not installed.")
-  }
 
   library(tidyverse)
-  library(progressr)
-
-  # Create output directory if needed
-  if (!dir.exists(data_dir)) {
-    dir.create(data_dir, recursive = TRUE)
-    if (verbose) cat("Created directory:", data_dir, "\n")
+  log_msg <- function(...) {
+    if (isTRUE(verbose)) {
+      message(paste0(...))
+    }
   }
 
   # Define constants
@@ -93,12 +90,34 @@ combine_results <- function(results_dir = "mcmc_outputs",
     weight_types = c("none", "low", "high")
   )
 
-  if (verbose) {
-    cat("\n")
-    cat(paste(rep("=", 78), collapse = ""), "\n")
-    cat("Loading HMC and MH Simulation Results\n")
-    cat(paste(rep("=", 78), collapse = ""), "\n\n")
+  if (!dir.exists(results_dir)) {
+    stop("Results directory not found: ", results_dir)
   }
+  results_dir <- normalizePath(results_dir, mustWork = TRUE)
+
+  is_absolute_path <- function(path) {
+    if (.Platform$OS.type == "windows") {
+      grepl("^[A-Za-z]:[/\\\\]", path) || grepl("^\\\\\\\\", path)
+    } else {
+      substr(path, 1, 1) == "/"
+    }
+  }
+
+  if (!is_absolute_path(data_dir)) {
+    data_dir <- file.path(dirname(results_dir), data_dir)
+  }
+
+  data_dir <- sub("[/\\\\]+$", "", data_dir)
+  if (!identical(basename(data_dir), "combined_results")) {
+    data_dir <- file.path(data_dir, "combined_results")
+  }
+
+  if (!dir.exists(data_dir)) {
+    dir.create(data_dir, recursive = TRUE, showWarnings = FALSE)
+  }
+  data_dir <- normalizePath(data_dir, mustWork = TRUE)
+  log_msg("Combining simulation outputs from: ", results_dir)
+  log_msg("Saving combined results to: ", data_dir)
 
   # Load data
   sample_sizes <- c(200, 2000, 10000)
@@ -110,9 +129,7 @@ combine_results <- function(results_dir = "mcmc_outputs",
     })
   })
 
-  if (verbose) {
-    cat(sprintf("\nTotal summary records loaded: %d\n", nrow(all_summaries)))
-  }
+  log_msg("Loaded ", nrow(all_summaries), " summary rows.")
 
   all_diagnostics <- map_dfr(sample_sizes, function(n) {
     map_dfr(methods, function(m) {
@@ -120,10 +137,8 @@ combine_results <- function(results_dir = "mcmc_outputs",
     })
   })
 
-  if (verbose) {
-    cat(sprintf("Total diagnostic records loaded: %d\n\n", nrow(all_diagnostics)))
-    cat("Processing combined data...\n")
-  }
+  log_msg("Loaded ", nrow(all_diagnostics), " diagnostic rows.")
+  log_msg("Processing combined data.")
 
   # Process data
   combined_summaries <- all_summaries %>%
@@ -171,87 +186,31 @@ combine_results <- function(results_dir = "mcmc_outputs",
       )
     )
 
-  # Print summary statistics
-  if (verbose) {
-    cat("\n")
-    cat("Data Summary\n")
-    cat(paste(rep("-", 78), collapse = ""), "\n")
-
-    count_summary <- combined_diagnostics %>%
-      count(method, n_obs, name = "n_fits") %>%
-      pivot_wider(names_from = method, values_from = n_fits, values_fill = 0)
-
-    print(count_summary)
-
-    cat("\nConvergence Rates:\n")
-    convergence_summary <- combined_diagnostics %>%
-      group_by(method, n_obs) %>%
-      summarise(
-        expected = STUDY_DESIGN$datasets_per_n,
-        observed = n(),
-        converged = sum(converged),
-        pct_converged = 100 * (converged / expected),
-        .groups = "drop"
-      )
-
-    print(convergence_summary)
-
-    cat("\nExpected vs Actual Fits (per sample size):\n")
-    missing_summary <- combined_diagnostics %>%
-      count(method, n_obs) %>%
-      mutate(
-        expected = STUDY_DESIGN$datasets_per_n,
-        missing = expected - n,
-        pct_complete = 100 * (n / expected)
-      )
-
-    print(missing_summary)
-  }
-
   # Save processed data
-  if (verbose) cat("\nSaving processed datasets...\n")
 
-  saveRDS(combined_summaries, file.path(data_dir, "combined_summaries.rds"))
-  if (verbose) {
-    cat(sprintf(
-      "  ✓ Saved combined_summaries.rds (%d rows)\n",
-      nrow(combined_summaries)
-    ))
-  }
+  summaries_rds <- file.path(data_dir, "combined_summaries.rds")
+  summaries_csv <- file.path(data_dir, "combined_summaries.csv")
+  saveRDS(combined_summaries, summaries_rds)
+  write_csv(combined_summaries, summaries_csv)
+  log_msg("Saved combined_summaries.rds (", nrow(combined_summaries), " rows).")
+  log_msg("Saved combined_summaries.csv (", nrow(combined_summaries), " rows).")
 
-  saveRDS(combined_diagnostics, file.path(data_dir, "combined_diagnostics.rds"))
-  if (verbose) {
-    cat(sprintf(
-      "  ✓ Saved combined_diagnostics.rds (%d rows)\n",
-      nrow(combined_diagnostics)
-    ))
-  }
+  diagnostics_rds <- file.path(data_dir, "combined_diagnostics.rds")
+  diagnostics_csv <- file.path(data_dir, "combined_diagnostics.csv")
+  saveRDS(combined_diagnostics, diagnostics_rds)
+  write_csv(combined_diagnostics, diagnostics_csv)
+  log_msg("Saved combined_diagnostics.rds (", nrow(combined_diagnostics), " rows).")
+  log_msg("Saved combined_diagnostics.csv (", nrow(combined_diagnostics), " rows).")
 
-  saveRDS(scenario_metadata, file.path(data_dir, "scenario_metadata.rds"))
-  if (verbose) {
-    cat(sprintf(
-      "  ✓ Saved scenario_metadata.rds (%d scenarios)\n",
-      nrow(scenario_metadata)
-    ))
-  }
-
-  write_csv(scenario_metadata, file.path(data_dir, "scenario_metadata.csv"))
+  scenario_rds <- file.path(data_dir, "scenario_metadata.rds")
+  scenario_csv <- file.path(data_dir, "scenario_metadata.csv")
+  saveRDS(scenario_metadata, scenario_rds)
+  write_csv(scenario_metadata, scenario_csv)
+  log_msg("Saved scenario_metadata.rds (", nrow(scenario_metadata), " scenarios).")
+  log_msg("Saved scenario_metadata.csv.")
 
   saveRDS(STUDY_DESIGN, file.path(data_dir, "study_design.rds"))
-  if (verbose) cat("  ✓ Saved study_design.rds (reference constants)\n")
-
-  if (verbose) {
-    cat("\n")
-    cat(paste(rep("=", 78), collapse = ""), "\n")
-    cat("Data combination complete!\n")
-    cat(paste(rep("=", 78), collapse = ""), "\n\n")
-    cat("Output files:\n")
-    cat(sprintf("  - %s/combined_summaries.rds\n", data_dir))
-    cat(sprintf("  - %s/combined_diagnostics.rds\n", data_dir))
-    cat(sprintf("  - %s/scenario_metadata.rds\n", data_dir))
-    cat(sprintf("  - %s/scenario_metadata.csv\n", data_dir))
-    cat(sprintf("  - %s/study_design.rds\n\n", data_dir))
-  }
+  log_msg("Saved study_design.rds.")
 
   # Return results invisibly
   invisible(list(
@@ -394,24 +353,17 @@ load_summaries <- function(method, n_obs, results_dir, verbose = TRUE) {
   }
 
   if (verbose) {
-    cat(sprintf(
-      "Loading %d %s summary files for n=%d...\n",
+    message(sprintf(
+      "Loading %d %s summary files for n=%d...",
       length(files),
       toupper(method),
       n_obs
     ))
   }
 
-  progressr::with_progress({
-    p <- progressr::progressor(steps = length(files))
-
-    summaries <- purrr::map_dfr(files, function(f) {
-      p()
-      load_summary_file(f, method)
-    })
+  purrr::map_dfr(files, function(f) {
+    load_summary_file(f, method)
   })
-
-  summaries
 }
 
 #' Load all diagnostic files for a given method and sample size
@@ -438,22 +390,15 @@ load_diagnostics <- function(method, n_obs, results_dir, verbose = TRUE) {
   }
 
   if (verbose) {
-    cat(sprintf(
-      "Loading %d %s diagnostic files for n=%d...\n",
+    message(sprintf(
+      "Loading %d %s diagnostic files for n=%d...",
       length(files),
       toupper(method),
       n_obs
     ))
   }
 
-  progressr::with_progress({
-    p <- progressr::progressor(steps = length(files))
-
-    diagnostics <- purrr::map_dfr(files, function(f) {
-      p()
-      load_diagnostic_file(f, method)
-    })
+  purrr::map_dfr(files, function(f) {
+    load_diagnostic_file(f, method)
   })
-
-  diagnostics
 }

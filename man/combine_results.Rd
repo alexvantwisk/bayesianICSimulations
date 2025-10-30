@@ -64,8 +64,8 @@ This function:
 \item Calculates error metrics (bias, RMSE, coverage, CI width)
 \item Adds convergence flags (Rhat ≤ 1.01 & ESS ≥ 400)
 \item Saves four files to data_dir (default: outputs/combined_results/):
-- combined_summaries.rds
-- combined_diagnostics.rds
+- combined_summaries.rds/csv
+- combined_diagnostics.rds/csv
 - scenario_metadata.rds/csv
 - study_design.rds
 }

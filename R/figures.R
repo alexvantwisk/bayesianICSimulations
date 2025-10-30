@@ -1,6 +1,6 @@
 #' Create All Publication Figures
 #'
-#' Generate and save all 13 publication-ready figures for HMC vs MH comparison.
+#' Generate and save all 14 publication-ready figures for HMC vs MH comparison.
 #'
 #' @param data_dir Character string. Path to directory containing combined datasets.
 #'   Default: "outputs/combined_results"
@@ -23,6 +23,7 @@
 #'   \item fig3b_rmse.png - RMSE by parameter and sample size
 #'   \item fig4_ess_per_sec.png - Sampling efficiency
 #'   \item fig5_runtime.png - Total runtime by scenario
+#'   \item fig6_survival_cells.png - Weighted survival curves by design cell
 #'   \item fig7_means_agreement.png - Agreement of posterior means
 #'   \item figA1_cis_vs_truth.png - Credible intervals vs true value
 #'   \item figA2_ci_matrix.png - CI matrix by parameter/sample size/method
@@ -47,12 +48,14 @@
 #' }
 #'
 #' @export
-save_all_figures <- function(data_dir = "outputs/combined_results",
-                              output_dir = "outputs/figures",
-                              width = 8,
-                              height = 6,
-                              dpi = 320,
-                              formats = "png") {
+save_all_figures <- function(
+  data_dir = "outputs/combined_results",
+  output_dir = "outputs/figures",
+  width = 8,
+  height = 6,
+  dpi = 320,
+  formats = "png"
+) {
   # Load required packages
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' is required but not installed.")
@@ -79,68 +82,157 @@ save_all_figures <- function(data_dir = "outputs/combined_results",
 
   cat("  Creating Figure 1a: R-hat ECDFs...\n")
   plots$fig1a <- create_figure1a_rhat_ecdf(plot_data)
-  save_figure(plots$fig1a, file.path(output_dir, "fig1a_rhat_ecdf"),
-              width = 9, height = 3.2, dpi = dpi, formats = formats)
+  save_figure(
+    plots$fig1a,
+    file.path(output_dir, "fig1a_rhat_ecdf"),
+    width = 9,
+    height = 3.2,
+    dpi = dpi,
+    formats = formats
+  )
 
   cat("  Creating Figure 1b: ESS ridges...\n")
   plots$fig1b <- create_figure1b_ess_ridges(plot_data)
-  save_figure(plots$fig1b, file.path(output_dir, "fig1b_ess_ridges"),
-              width = 9, height = 3.2, dpi = dpi, formats = formats)
+  save_figure(
+    plots$fig1b,
+    file.path(output_dir, "fig1b_ess_ridges"),
+    width = 9,
+    height = 3.2,
+    dpi = dpi,
+    formats = formats
+  )
 
   cat("  Creating Figure 2: Coverage...\n")
   plots$fig2 <- create_figure2_coverage(plot_data)
-  save_figure(plots$fig2, file.path(output_dir, "fig2_coverage"),
-              width = 10, height = 6, dpi = dpi, formats = formats)
+  save_figure(
+    plots$fig2,
+    file.path(output_dir, "fig2_coverage"),
+    width = 10,
+    height = 6,
+    dpi = dpi,
+    formats = formats
+  )
 
   cat("  Creating Figure 3a: Bias...\n")
   plots$fig3a <- create_figure3a_bias(plot_data)
-  save_figure(plots$fig3a, file.path(output_dir, "fig3a_bias"),
-              width = 9, height = 6, dpi = dpi, formats = formats)
+  save_figure(
+    plots$fig3a,
+    file.path(output_dir, "fig3a_bias"),
+    width = 9,
+    height = 6,
+    dpi = dpi,
+    formats = formats
+  )
 
   cat("  Creating Figure 3b: RMSE...\n")
   plots$fig3b <- create_figure3b_rmse(plot_data)
-  save_figure(plots$fig3b, file.path(output_dir, "fig3b_rmse"),
-              width = 9, height = 6, dpi = dpi, formats = formats)
+  save_figure(
+    plots$fig3b,
+    file.path(output_dir, "fig3b_rmse"),
+    width = 9,
+    height = 6,
+    dpi = dpi,
+    formats = formats
+  )
 
   cat("  Creating Figure 4: ESS per second...\n")
   plots$fig4 <- create_figure4_ess_per_sec(plot_data)
-  save_figure(plots$fig4, file.path(output_dir, "fig4_ess_per_sec"),
-              width = 9, height = 3.2, dpi = dpi, formats = formats)
+  save_figure(
+    plots$fig4,
+    file.path(output_dir, "fig4_ess_per_sec"),
+    width = 9,
+    height = 3.2,
+    dpi = dpi,
+    formats = formats
+  )
 
   cat("  Creating Figure 5: Runtime...\n")
   plots$fig5 <- create_figure5_runtime(plot_data)
-  save_figure(plots$fig5, file.path(output_dir, "fig5_runtime"),
-              width = 10, height = 6, dpi = dpi, formats = formats)
+  save_figure(
+    plots$fig5,
+    file.path(output_dir, "fig5_runtime"),
+    width = 10,
+    height = 6,
+    dpi = dpi,
+    formats = formats
+  )
+
+  cat("  Creating Figure 6: Survival cells (this may take a few minutes)...\n")
+  plots$fig6 <- create_figure6_survival_cells()
+  save_figure(
+    plots$fig6,
+    file.path(output_dir, "fig6_survival_cells"),
+    width = 12,
+    height = 16,
+    dpi = dpi,
+    formats = formats
+  )
 
   cat("  Creating Figure 7: Means agreement...\n")
   plots$fig7 <- create_figure7_means_agreement(plot_data)
-  save_figure(plots$fig7, file.path(output_dir, "fig7_means_agreement"),
-              width = 9, height = 6, dpi = dpi, formats = formats)
+  save_figure(
+    plots$fig7,
+    file.path(output_dir, "fig7_means_agreement"),
+    width = 9,
+    height = 6,
+    dpi = dpi,
+    formats = formats
+  )
 
   cat("  Creating Figure A1: CIs vs truth...\n")
   plots$figA1 <- create_figureA1_cis_vs_truth(plot_data)
-  save_figure(plots$figA1, file.path(output_dir, "figA1_cis_vs_truth"),
-              width = 11, height = 7, dpi = dpi, formats = formats)
+  save_figure(
+    plots$figA1,
+    file.path(output_dir, "figA1_cis_vs_truth"),
+    width = 11,
+    height = 7,
+    dpi = dpi,
+    formats = formats
+  )
 
   cat("  Creating Figure A2: CI matrix...\n")
   plots$figA2 <- create_figureA2_ci_matrix(plot_data)
-  save_figure(plots$figA2, file.path(output_dir, "figA2_ci_matrix"),
-              width = 10, height = 12, dpi = dpi, formats = formats)
+  save_figure(
+    plots$figA2,
+    file.path(output_dir, "figA2_ci_matrix"),
+    width = 10,
+    height = 12,
+    dpi = dpi,
+    formats = formats
+  )
 
   cat("  Creating Figure B1: Precision trade-off...\n")
   plots$figB1 <- create_figureB1_precision_tradeoff(plot_data)
-  save_figure(plots$figB1, file.path(output_dir, "figB1_precision_tradeoff"),
-              width = 10, height = 6, dpi = dpi, formats = formats)
+  save_figure(
+    plots$figB1,
+    file.path(output_dir, "figB1_precision_tradeoff"),
+    width = 10,
+    height = 6,
+    dpi = dpi,
+    formats = formats
+  )
 
   cat("  Creating Figure B2: Coverage heatmap...\n")
   plots$figB2 <- create_figureB2_coverage_heatmap(plot_data)
-  save_figure(plots$figB2, file.path(output_dir, "figB2_coverage_bias_heatmap"),
-              width = 10, height = 5, dpi = dpi, formats = formats)
+  save_figure(
+    plots$figB2,
+    file.path(output_dir, "figB2_coverage_bias_heatmap"),
+    width = 10,
+    height = 5,
+    dpi = dpi,
+    formats = formats
+  )
 
   cat("  Creating Figure B3: CI width violin...\n")
   plots$figB3 <- create_figureB3_ci_width_violin(plot_data)
-  save_figure(plots$figB3, file.path(output_dir, "figB3_ci_width_violin"),
-              width = 9, height = 6, dpi = dpi, formats = formats)
+  save_figure(
+    plots$figB3,
+    file.path(output_dir, "figB3_ci_width_violin"),
+    width = 9,
+    height = 6,
+    dpi = dpi,
+    formats = formats
+  )
 
   cat("\nAll figures saved to:", output_dir, "\n")
 
@@ -205,13 +297,24 @@ prepare_plot_data <- function(data_dir) {
   res <- res %>%
     left_join(
       diagnostics,
-      by = c("method", "scenario_id", "replicate", "n_obs", "censoring", "weight")
+      by = c(
+        "method",
+        "scenario_id",
+        "replicate",
+        "n_obs",
+        "censoring",
+        "weight"
+      )
     ) %>%
     mutate(
       runtime_s = coalesce(runtime_diag, runtime_summary),
       ess_per_sec = coalesce(
         ess_per_sec,
-        if_else(!is.na(runtime_s) & runtime_s > 0, ess_bulk / runtime_s, NA_real_)
+        if_else(
+          !is.na(runtime_s) & runtime_s > 0,
+          ess_bulk / runtime_s,
+          NA_real_
+        )
       ),
       bias = error,
       rmse = sqrt(squared_error)
@@ -266,7 +369,14 @@ get_theme_sci <- function() {
 #' @param dpi Resolution
 #' @param formats Character vector of formats ("png", "pdf")
 #' @keywords internal
-save_figure <- function(plot, filename, width = 8, height = 6, dpi = 320, formats = "png") {
+save_figure <- function(
+  plot,
+  filename,
+  width = 8,
+  height = 6,
+  dpi = 320,
+  formats = "png"
+) {
   for (fmt in formats) {
     file_path <- paste0(filename, ".", fmt)
     ggplot2::ggsave(
@@ -377,7 +487,10 @@ create_figure2_coverage <- function(plot_data) {
       fill = "grey80",
       alpha = 0.3
     ) +
-    ggplot2::geom_point(position = ggplot2::position_dodge(width = 0.4), size = 2) +
+    ggplot2::geom_point(
+      position = ggplot2::position_dodge(width = 0.4),
+      size = 2
+    ) +
     ggplot2::facet_grid(n_obs ~ parameter) +
     ggplot2::scale_x_continuous(
       breaks = sort(unique(cov_sum$scnx_id)),
@@ -455,9 +568,17 @@ create_figure3b_rmse <- function(plot_data) {
 #' @param plot_data Prepared plot data from prepare_plot_data()
 #' @export
 create_figure4_ess_per_sec <- function(plot_data) {
-  ggplot2::ggplot(plot_data$res, ggplot2::aes(x = method, y = ess_per_sec, fill = method)) +
+  ggplot2::ggplot(
+    plot_data$res,
+    ggplot2::aes(x = method, y = ess_per_sec, fill = method)
+  ) +
     ggplot2::geom_violin(trim = FALSE, alpha = 0.7) +
-    ggplot2::stat_summary(fun = median, geom = "point", colour = "black", size = 1.2) +
+    ggplot2::stat_summary(
+      fun = median,
+      geom = "point",
+      colour = "black",
+      size = 1.2
+    ) +
     ggplot2::facet_wrap(~n_obs, nrow = 1) +
     ggplot2::scale_y_log10() +
     ggplot2::scale_fill_manual(values = get_palette()) +
@@ -477,9 +598,17 @@ create_figure5_runtime <- function(plot_data) {
   run_df <- plot_data$res %>%
     filter(!is.na(runtime_s))
 
-  ggplot2::ggplot(run_df, ggplot2::aes(x = method, y = runtime_s, fill = method)) +
+  ggplot2::ggplot(
+    run_df,
+    ggplot2::aes(x = method, y = runtime_s, fill = method)
+  ) +
     ggplot2::geom_violin(trim = FALSE, alpha = 0.7) +
-    ggplot2::stat_summary(fun = median, geom = "point", colour = "black", size = 1.2) +
+    ggplot2::stat_summary(
+      fun = median,
+      geom = "point",
+      colour = "black",
+      size = 1.2
+    ) +
     ggplot2::facet_grid(n_obs + weight ~ censoring) +
     ggplot2::scale_y_log10() +
     ggplot2::scale_fill_manual(values = get_palette()) +
@@ -523,7 +652,12 @@ create_figure7_means_agreement <- function(plot_data) {
     )
 
   ggplot2::ggplot(est_df, ggplot2::aes(x = mean_hmc, y = mean_mh)) +
-    ggplot2::geom_abline(slope = 1, intercept = 0, linetype = 2, colour = "grey50") +
+    ggplot2::geom_abline(
+      slope = 1,
+      intercept = 0,
+      linetype = 2,
+      colour = "grey50"
+    ) +
     ggplot2::geom_point(alpha = 0.5, size = 0.6) +
     ggplot2::facet_grid(n_obs ~ parameter) +
     ggplot2::coord_equal() +
@@ -611,7 +745,10 @@ create_figureA1_cis_vs_truth <- function(plot_data) {
         title = ""
       )
     ) +
-    ggplot2::scale_alpha_manual(values = c(`TRUE` = 0.9, `FALSE` = 0.4), guide = "none") +
+    ggplot2::scale_alpha_manual(
+      values = c(`TRUE` = 0.9, `FALSE` = 0.4),
+      guide = "none"
+    ) +
     ggplot2::labs(
       x = "Estimate / 95% CI",
       y = "Scenario (Censoring, Weight)",
@@ -809,33 +946,54 @@ create_figureB1_precision_tradeoff <- function(plot_data) {
       scenario = factor(scenario, levels = scenario_levels)
     )
 
+  # Create pair IDs for connecting HMC-MH pairs
+  pair_summary <- precision_summary %>%
+    group_by(parameter, n_obs, scenario) %>%
+    mutate(pair_id = paste(parameter, n_obs, scenario, sep = "_")) %>%
+    ungroup()
+
   ggplot2::ggplot(
-    precision_summary,
+    pair_summary,
     ggplot2::aes(x = width_med, y = coverage, colour = method, shape = method)
   ) +
-    ggplot2::geom_hline(yintercept = 0.95, colour = "grey60", linetype = 3) +
+    ggplot2::geom_hline(yintercept = 0.95, colour = "grey60", linetype = 3, linewidth = 0.5) +
+    # Connect HMC-MH pairs with line segments
+    ggplot2::geom_line(
+      ggplot2::aes(group = pair_id),
+      colour = "grey70",
+      linewidth = 0.3,
+      alpha = 0.7
+    ) +
+    # Error bars with reduced alpha
     ggplot2::geom_errorbar(
       ggplot2::aes(ymin = coverage_lo, ymax = coverage_hi),
-      linewidth = 0.4,
-      width = 0
+      linewidth = 0.35,
+      width = 0,
+      alpha = 0.6
     ) +
     ggplot2::geom_errorbarh(
       ggplot2::aes(xmin = width_med - width_se, xmax = width_med + width_se),
-      linewidth = 0.4,
-      height = 0.08
+      linewidth = 0.35,
+      height = 0.008,
+      alpha = 0.6
     ) +
-    ggplot2::geom_point(size = 2) +
-    ggplot2::facet_grid(parameter ~ n_obs) +
+    # Points on top with distinct shapes
+    ggplot2::geom_point(size = 2.5, stroke = 0.8) +
+    ggplot2::facet_grid(parameter ~ n_obs, scales = "free_x") +
     ggplot2::scale_colour_manual(values = get_palette()) +
+    ggplot2::scale_shape_manual(values = c(HMC = 16, MH = 17)) +  # Circle, triangle
     ggplot2::labs(
-      x = "Median CI width",
-      y = "Coverage",
+      x = "Median 95% CI width",
+      y = "Coverage proportion",
       colour = "Method",
       shape = "Method",
-      title = "Precision–coverage trade-off"
+      title = "Precision–coverage trade-off (lines connect HMC-MH pairs)"
     ) +
     get_theme_sci() +
-    ggplot2::theme(legend.position = "bottom")
+    ggplot2::theme(
+      legend.position = "bottom",
+      panel.grid.minor = ggplot2::element_blank()
+    )
 }
 
 #' Create Figure B2: Coverage bias heatmap
@@ -935,4 +1093,375 @@ create_figureB3_ci_width_violin <- function(plot_data) {
     ) +
     get_theme_sci() +
     ggplot2::theme(legend.position = "bottom")
+}
+
+#' Create Figure 6: Weighted Survival Curves by Design Cell
+#'
+#' Creates a 27-panel figure showing weighted interval-censored survival curves
+#' across all design cells (3 censoring levels × 3 weight types × 3 sample sizes).
+#' Unlike other figures in this module, this uses raw simulation data with
+#' parametric fits (icenReg) rather than pre-computed MCMC results.
+#'
+#' @param data_dirs Character vector of paths to simulation data directories.
+#'   Default: c("sim_data/n200", "sim_data/n2000", "sim_data/n10000")
+#' @param which Character. Type of curve to plot: "S" (survival), "H" (cumulative
+#'   hazard), or "h" (hazard). Default: "S"
+#' @param n_ghost Integer. Maximum number of replicate curves to show per cell.
+#'   Default: 50
+#' @param true_alpha Numeric. True baseline scale parameter. Default: 5.0
+#' @param true_gamma Numeric. True shape parameter. Default: 1.5
+#' @param true_beta Numeric. True AFT coefficient. Default: -0.5
+#'
+#' @return A ggplot object with 27 panels (9 rows × 3 columns)
+#'
+#' @details
+#' This figure provides exploratory visualization of survival curve behavior
+#' across the simulation design space. Each panel shows:
+#' \itemize{
+#'   \item Ghost curves: Up to 50 semi-transparent replicate survival curves
+#'   \item Uncertainty ribbons: 50% and 95% pointwise credible intervals
+#'   \item Mean curve: Average survival curve across replicates (gray)
+#'   \item True curve: Population survival curve based on true parameters (black)
+#' }
+#'
+#' Faceting structure:
+#' \itemize{
+#'   \item Rows: Sample size × censoring (9 levels: n=200/C=0.1, n=200/C=0.3, ...)
+#'   \item Columns: Weight type (3 levels: none, low, high)
+#' }
+#'
+#' @export
+create_figure6_survival_cells <- function(
+  data_dirs = c("data/n200", "data/n2000", "data/n10000"),
+  which = "S",
+  n_ghost = 50,
+  true_alpha = 5.0,
+  true_gamma = 1.5,
+  true_beta = -0.5
+) {
+  # Load required packages
+  if (!requireNamespace("dplyr", quietly = TRUE)) {
+    stop("Package 'dplyr' is required but not installed.")
+  }
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' is required but not installed.")
+  }
+  if (!requireNamespace("stringr", quietly = TRUE)) {
+    stop("Package 'stringr' is required but not installed.")
+  }
+
+  suppressPackageStartupMessages({
+    library(dplyr)
+  })
+
+  # Initialize storage
+  results_list <- list()
+  design_df_list <- list()
+
+  # Loop through each sample size directory
+  for (data_dir in data_dirs) {
+    message("\nProcessing directory: ", data_dir)
+
+    if (!dir.exists(data_dir)) {
+      warning("Directory does not exist: ", data_dir, ". Skipping.")
+      next
+    }
+
+    # Discover design cells in this directory
+    design_df <- create_design_df_from_files(
+      path = data_dir,
+      true_alpha = true_alpha,
+      true_gamma = true_gamma,
+      true_beta = true_beta
+    )
+
+    # Filter to only include desired censoring levels
+    design_df <- design_df %>%
+      filter(censoring %in% c(0.1, 0.3, 0.5))
+
+    if (nrow(design_df) == 0) {
+      warning("No design cells found in ", data_dir)
+      next
+    }
+
+    message("  Found ", nrow(design_df), " design cells")
+
+    # Process each design cell
+    for (i in 1:nrow(design_df)) {
+      cell_meta <- design_df[i, ]
+      cell_id <- cell_meta$cell_id
+
+      message("  Processing cell: ", cell_id)
+
+      # Build file pattern
+      pattern <- sprintf(
+        "sim_s.*_n%04d_c%.1f_w%s\\.rds$",
+        cell_meta$n,
+        cell_meta$censoring,
+        cell_meta$weight_type
+      )
+
+      # Load simulation data
+      sims <- tryCatch(
+        {
+          load_sims_from_dir(
+            path = data_dir,
+            pattern = pattern,
+            require_cols = c("L", "R", "weight", "X1")
+          )
+        },
+        error = function(e) {
+          warning("  Failed to load data for ", cell_id, ": ", e$message)
+          return(list())
+        }
+      )
+
+      if (length(sims) == 0) {
+        message("    No data found")
+        next
+      }
+
+      # Limit to n_ghost replicates
+      if (length(sims) > n_ghost) {
+        sims <- sims[1:n_ghost]
+      }
+
+      message("    Loaded ", length(sims), " replicates")
+
+      # Fit parametric models
+      results <- tryCatch(
+        {
+          summarise_weighted_curves(
+            sims = sims,
+            weight_metric = "cv",
+            include_covariate = TRUE
+          )
+        },
+        error = function(e) {
+          warning("    Error fitting ", cell_id, ": ", e$message)
+          return(NULL)
+        }
+      )
+
+      if (!is.null(results)) {
+        results_list[[cell_id]] <- results
+        message(
+          "    Converged: ",
+          results$meta$n_converged,
+          " / ",
+          results$meta$n_total
+        )
+      }
+    }
+
+    # Store design_df for this directory
+    design_df_list[[data_dir]] <- design_df
+  }
+
+  # Check if we have any results
+  if (length(results_list) == 0) {
+    stop("No results to plot. All design cells failed.")
+  }
+
+  # Combine all design dataframes
+  design_df_combined <- bind_rows(design_df_list)
+
+  # Ensure weight_type has correct factor ordering
+  design_df_combined <- design_df_combined %>%
+    mutate(
+      weight_type = factor(weight_type, levels = c("none", "low", "high"))
+    )
+
+  # Create composite row labels for faceting
+  design_df_combined <- design_df_combined %>%
+    mutate(
+      row_label = factor(
+        paste0("n=", n, ", C=", censoring),
+        levels = c(
+          "n=200, C=0.1",
+          "n=200, C=0.3",
+          "n=200, C=0.5",
+          "n=2000, C=0.1",
+          "n=2000, C=0.3",
+          "n=2000, C=0.5",
+          "n=10000, C=0.1",
+          "n=10000, C=0.3",
+          "n=10000, C=0.5"
+        )
+      )
+    )
+
+  # Combine all rep_df and sum_df with cell_id
+  all_rep <- list()
+  all_sum <- list()
+
+  for (cell_id in names(results_list)) {
+    res <- results_list[[cell_id]]
+
+    # Add cell_id to both dataframes
+    rep_with_id <- res$rep_df %>%
+      mutate(cell_id = cell_id)
+
+    sum_with_id <- res$sum_df %>%
+      mutate(cell_id = cell_id)
+
+    all_rep[[cell_id]] <- rep_with_id
+    all_sum[[cell_id]] <- sum_with_id
+  }
+
+  combined_rep <- bind_rows(all_rep)
+  combined_sum <- bind_rows(all_sum)
+
+  # Join with design_df to add design factors
+  combined_rep <- combined_rep %>%
+    left_join(design_df_combined, by = "cell_id")
+
+  combined_sum <- combined_sum %>%
+    left_join(design_df_combined, by = "cell_id")
+
+  # Transform curves if needed
+  if (which %in% c("H", "h")) {
+    combined_sum <- combined_sum %>%
+      mutate(
+        S_mean = -log(S_mean),
+        S_med = -log(S_med),
+        S_q50l = -log(S_q50l),
+        S_q50u = -log(S_q50u),
+        S_q95l = -log(S_q95l),
+        S_q95u = -log(S_q95u)
+      )
+
+    combined_rep <- combined_rep %>%
+      mutate(S = -log(S))
+  }
+
+  if (which == "h") {
+    # Hazard via finite differences
+    combined_sum <- combined_sum %>%
+      group_by(cell_id, if ("X1" %in% names(.)) X1 else NULL) %>%
+      arrange(t) %>%
+      mutate(
+        dt = c(diff(t), diff(t)[n() - 1]),
+        S_mean = pmax(c(diff(S_mean), 0) / dt, 0),
+        S_q50l = pmax(c(diff(S_q50l), 0) / dt, 0),
+        S_q50u = pmax(c(diff(S_q50u), 0) / dt, 0),
+        S_q95l = pmax(c(diff(S_q95l), 0) / dt, 0),
+        S_q95u = pmax(c(diff(S_q95u), 0) / dt, 0)
+      ) %>%
+      select(-dt) %>%
+      ungroup()
+
+    combined_rep <- combined_rep %>%
+      group_by(cell_id, rep_id, if ("X1" %in% names(.)) X1 else NULL) %>%
+      arrange(t) %>%
+      mutate(
+        dt = c(diff(t), diff(t)[n() - 1]),
+        S = pmax(c(diff(S), 0) / dt, 0)
+      ) %>%
+      select(-dt) %>%
+      ungroup()
+  }
+
+  # Sample ghost replicates per cell (already limited to n_ghost during loading)
+  ghost_df <- combined_rep
+
+  # Compute true curves per cell
+  true_list <- lapply(unique(combined_sum$cell_id), function(cid) {
+    cell_meta <- design_df_combined %>% filter(cell_id == cid)
+
+    t_grid <- combined_sum %>%
+      filter(cell_id == cid) %>%
+      pull(t) %>%
+      unique() %>%
+      sort()
+
+    true_vals <- compute_marginal_survival(
+      t = t_grid,
+      alpha = cell_meta$true_alpha[1],
+      gamma = cell_meta$true_gamma[1],
+      beta = cell_meta$true_beta[1],
+      X1_dist = c(0.5, 0.5),
+      type = which
+    )
+
+    data.frame(
+      cell_id = cid,
+      t = t_grid,
+      S_true = true_vals
+    ) %>%
+      left_join(design_df_combined, by = "cell_id")
+  })
+
+  true_df <- bind_rows(true_list)
+
+  # Build faceted plot
+  y_lab <- switch(
+    which,
+    "S" = "Survival S(t)",
+    "H" = "Cumulative Hazard H(t)",
+    "h" = "Hazard h(t)"
+  )
+
+  p <- ggplot2::ggplot(combined_sum, ggplot2::aes(x = t)) +
+    # 95% ribbon
+    ggplot2::geom_ribbon(
+      ggplot2::aes(ymin = S_q95l, ymax = S_q95u),
+      fill = "grey70",
+      alpha = 0.2
+    ) +
+    # 50% ribbon
+    ggplot2::geom_ribbon(
+      ggplot2::aes(ymin = S_q50l, ymax = S_q50u),
+      fill = "grey50",
+      alpha = 0.3
+    ) +
+    # Ghost lines
+    ggplot2::geom_line(
+      data = ghost_df,
+      ggplot2::aes(y = S, group = rep_id, color = weight_metric_value),
+      alpha = 0.08,
+      linewidth = 0.3
+    ) +
+    # Mean curve
+    ggplot2::geom_line(
+      ggplot2::aes(y = S_mean),
+      color = "grey30",
+      linewidth = 0.8
+    ) +
+    # True curve
+    ggplot2::geom_line(
+      data = true_df,
+      ggplot2::aes(x = t, y = S_true),
+      color = "red",
+      linewidth = 1.0
+    ) +
+    # Facets with composite row labels
+    ggplot2::facet_grid(row_label ~ weight_type, scales = "free") +
+    # Color scale
+    ggplot2::scale_color_viridis_c(
+      name = "CV(weights)",
+      guide = "none"
+    ) +
+    # Theme
+    ggplot2::theme_bw(base_size = 10) +
+    ggplot2::theme(
+      panel.grid.minor = ggplot2::element_blank(),
+      strip.background = ggplot2::element_rect(fill = "grey90"),
+      strip.text = ggplot2::element_text(face = "bold", size = 9),
+      legend.position = "none"
+    ) +
+    ggplot2::labs(
+      x = "Time",
+      y = y_lab,
+      title = "Weighted Survival Estimates Across Design Cells",
+      subtitle = paste0(
+        "Ghost curves: ",
+        n_ghost,
+        " replicates per cell | ",
+        "Ribbons: 50% (dark) and 95% (light) pointwise intervals | ",
+        "Red line: true population curve"
+      )
+    )
+
+  p
 }
