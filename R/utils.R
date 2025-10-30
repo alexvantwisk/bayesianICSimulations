@@ -2,6 +2,7 @@
 #'
 #' @keywords internal
 #' @noRd
+NULL
 
 #' Null coalesce operator (internal)
 #'

@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{\%||\%}
 \alias{\%||\%}
-\title{Utility functions for bayesianICSimulations package}
+\title{Null coalesce operator (internal)}
 \usage{
 x \%||\% y
 }
@@ -15,6 +15,6 @@ x \%||\% y
 x if not NULL, otherwise y
 }
 \description{
-Utility functions for bayesianICSimulations package
+Null coalesce operator (internal)
 }
 \keyword{internal}

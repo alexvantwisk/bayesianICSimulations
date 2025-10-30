@@ -73,6 +73,6 @@ NULL
 #'   \item \code{future.batchtools} - For HPC parallelization
 #' }
 #'
-#' @docType package
+#' @docType _PACKAGE
 #' @name bayesianICSimulations-package
 NULL

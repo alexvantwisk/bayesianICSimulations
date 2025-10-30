@@ -2,7 +2,7 @@
 % Please edit documentation in R/viz_helpers.R, R/viz_survival.R
 \name{safe_cv}
 \alias{safe_cv}
-\title{Internal helper functions for survival visualization}
+\title{Safely compute coefficient of variation}
 \usage{
 safe_cv(w)
 
@@ -17,7 +17,7 @@ Scalar CV, or NA if mean is near zero
 Scalar CV, or NA if mean is near zero
 }
 \description{
-Internal helper functions for survival visualization
+Safely compute coefficient of variation
 
 Safely compute coefficient of variation
 }

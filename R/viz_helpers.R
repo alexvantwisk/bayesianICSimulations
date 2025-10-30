@@ -2,6 +2,7 @@
 #'
 #' @keywords internal
 #' @noRd
+NULL
 
 #' Safely compute coefficient of variation
 #'
@@ -10,7 +11,9 @@
 #' @keywords internal
 safe_cv <- function(w) {
   w <- w[is.finite(w)]
-  if (length(w) == 0) return(NA_real_)
+  if (length(w) == 0) {
+    return(NA_real_)
+  }
 
   mu <- mean(w)
   if (abs(mu) < 1e-10) {
@@ -83,8 +86,14 @@ validate_sim_data <- function(df, require_cols = c("L", "R", "weight")) {
 #'
 #' @keywords internal
 #' @export
-compute_true_loglogistic <- function(t, alpha, gamma, beta = 0, X1 = 0,
-                                      type = c("S", "H", "h")) {
+compute_true_loglogistic <- function(
+  t,
+  alpha,
+  gamma,
+  beta = 0,
+  X1 = 0,
+  type = c("S", "H", "h")
+) {
   type <- match.arg(type)
 
   # AFT parameterization: log(alpha_i) = log(alpha) + beta * X1
@@ -93,14 +102,10 @@ compute_true_loglogistic <- function(t, alpha, gamma, beta = 0, X1 = 0,
   # Log-logistic survival function
   S_t <- 1 / (1 + (t / alpha_i)^gamma)
 
-  switch(type,
-    "S" = S_t,
-    "H" = -log(S_t),
-    "h" = {
-      # h(t) = (gamma/alpha_i) * (t/alpha_i)^(gamma-1) / (1 + (t/alpha_i)^gamma)
-      (gamma / alpha_i) * (t / alpha_i)^(gamma - 1) / (1 + (t / alpha_i)^gamma)
-    }
-  )
+  switch(type, "S" = S_t, "H" = -log(S_t), "h" = {
+    # h(t) = (gamma/alpha_i) * (t/alpha_i)^(gamma-1) / (1 + (t/alpha_i)^gamma)
+    (gamma / alpha_i) * (t / alpha_i)^(gamma - 1) / (1 + (t / alpha_i)^gamma)
+  })
 }
 
 
@@ -122,9 +127,14 @@ compute_true_loglogistic <- function(t, alpha, gamma, beta = 0, X1 = 0,
 #'
 #' @keywords internal
 #' @export
-compute_marginal_survival <- function(t, alpha, gamma, beta,
-                                       X1_dist = c(0.5, 0.5),
-                                       type = c("S", "H", "h")) {
+compute_marginal_survival <- function(
+  t,
+  alpha,
+  gamma,
+  beta,
+  X1_dist = c(0.5, 0.5),
+  type = c("S", "H", "h")
+) {
   type <- match.arg(type)
 
   if (length(X1_dist) != 2 || abs(sum(X1_dist) - 1) > 1e-6) {
@@ -138,15 +148,11 @@ compute_marginal_survival <- function(t, alpha, gamma, beta,
   # Marginal survival
   S_marginal <- X1_dist[1] * S0 + X1_dist[2] * S1
 
-  switch(type,
-    "S" = S_marginal,
-    "H" = -log(S_marginal),
-    "h" = {
-      # h(t) = -d/dt log(S(t)) using finite differences
-      H_marginal <- -log(S_marginal)
-      dt <- c(diff(t), diff(t)[length(t) - 1])
-      dH <- c(diff(H_marginal), diff(H_marginal)[length(t) - 1])
-      pmax(dH / dt, 0)  # Ensure non-negative
-    }
-  )
+  switch(type, "S" = S_marginal, "H" = -log(S_marginal), "h" = {
+    # h(t) = -d/dt log(S(t)) using finite differences
+    H_marginal <- -log(S_marginal)
+    dt <- c(diff(t), diff(t)[length(t) - 1])
+    dH <- c(diff(H_marginal), diff(H_marginal)[length(t) - 1])
+    pmax(dH / dt, 0) # Ensure non-negative
+  })
 }
