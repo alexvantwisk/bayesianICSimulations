@@ -986,8 +986,8 @@ create_figure5c_paired_slopes <- function(plot_data) {
         size = 2.8,
         colour = "grey30"
       ) +
-      # Points with reduced alpha
-      ggplot2::geom_point(alpha = 0.3, size = 0.6) +
+      # Points with reduced alpha (red)
+      ggplot2::geom_point(colour = "red", alpha = 0.35, size = 0.6) +
       ggplot2::facet_grid(n_obs ~ parameter) +
       ggplot2::coord_equal() +
       ggplot2::labs(
