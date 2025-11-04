@@ -5,6 +5,7 @@
 .RData
 .Ruserdata
 *.Rproj
+.DS_Store
 
 # Large data directories (exclude from git)
 mcmc_outputs/**       # MCMC fitted models (82 MB)
