@@ -199,14 +199,26 @@ combine_results <- function(
   diagnostics_csv <- file.path(data_dir, "combined_diagnostics.csv")
   saveRDS(combined_diagnostics, diagnostics_rds)
   write_csv(combined_diagnostics, diagnostics_csv)
-  log_msg("Saved combined_diagnostics.rds (", nrow(combined_diagnostics), " rows).")
-  log_msg("Saved combined_diagnostics.csv (", nrow(combined_diagnostics), " rows).")
+  log_msg(
+    "Saved combined_diagnostics.rds (",
+    nrow(combined_diagnostics),
+    " rows)."
+  )
+  log_msg(
+    "Saved combined_diagnostics.csv (",
+    nrow(combined_diagnostics),
+    " rows)."
+  )
 
   scenario_rds <- file.path(data_dir, "scenario_metadata.rds")
   scenario_csv <- file.path(data_dir, "scenario_metadata.csv")
   saveRDS(scenario_metadata, scenario_rds)
   write_csv(scenario_metadata, scenario_csv)
-  log_msg("Saved scenario_metadata.rds (", nrow(scenario_metadata), " scenarios).")
+  log_msg(
+    "Saved scenario_metadata.rds (",
+    nrow(scenario_metadata),
+    " scenarios)."
+  )
   log_msg("Saved scenario_metadata.csv.")
 
   saveRDS(STUDY_DESIGN, file.path(data_dir, "study_design.rds"))
@@ -268,14 +280,14 @@ load_summary_file <- function(filepath, method) {
         tibble::as_tibble() %>%
         dplyr::mutate(
           method = method,
-          scenario_id = metadata$scenario_id,
-          replicate = metadata$replicate,
           n_obs = metadata$n_obs,
           censoring = metadata$censoring,
           weight_type = metadata$weight_type,
+          scenario_id = metadata$scenario_id,
+          replicate = metadata$replicate,
           filepath = filepath
         ) %>%
-        dplyr::filter(variable != "lp__")
+        dplyr::filter(variable != "lp__", variable != "log_alpha")
     },
     error = function(e) {
       warning("Error loading ", filepath, ": ", e$message)
@@ -305,11 +317,11 @@ load_diagnostic_file <- function(filepath, method) {
         tibble::as_tibble() %>%
         dplyr::mutate(
           method = method,
-          scenario_id = metadata$scenario_id,
-          replicate = metadata$replicate,
           n_obs = metadata$n_obs,
           censoring = metadata$censoring,
           weight_type = metadata$weight_type,
+          scenario_id = metadata$scenario_id,
+          replicate = metadata$replicate,
           filepath = filepath
         )
     },

@@ -53,9 +53,11 @@
 #' }
 #'
 #' @export
-perform_statistical_analysis <- function(data_dir = "outputs/combined_results",
-                                          output_dir = "outputs/analysis",
-                                          verbose = TRUE) {
+perform_statistical_analysis <- function(
+  data_dir = "outputs/combined_results",
+  output_dir = "outputs/analysis",
+  verbose = TRUE
+) {
   # Load required packages
   if (!requireNamespace("tidyverse", quietly = TRUE)) {
     stop("Package 'tidyverse' is required but not installed.")
@@ -63,9 +65,6 @@ perform_statistical_analysis <- function(data_dir = "outputs/combined_results",
   if (!requireNamespace("broom", quietly = TRUE)) {
     stop("Package 'broom' is required but not installed.")
   }
-
-  library(tidyverse)
-  library(broom)
 
   # Create output directory
   if (!dir.exists(output_dir)) {
@@ -82,15 +81,24 @@ perform_statistical_analysis <- function(data_dir = "outputs/combined_results",
   }
 
   # Load data
-  combined_summaries <- readRDS(file.path(data_dir, "combined_summaries.rds")) %>%
+  combined_summaries <- readRDS(file.path(
+    data_dir,
+    "combined_summaries.rds"
+  )) %>%
     dplyr::filter(variable %in% c("alpha", "beta", "gamma"))
-  combined_diagnostics <- readRDS(file.path(data_dir, "combined_diagnostics.rds"))
+  combined_diagnostics <- readRDS(file.path(
+    data_dir,
+    "combined_diagnostics.rds"
+  ))
   scenario_metadata <- readRDS(file.path(data_dir, "scenario_metadata.rds"))
   study_design <- readRDS(file.path(data_dir, "study_design.rds"))
 
   if (verbose) {
     cat(sprintf("  ✓ Loaded %d summary records\n", nrow(combined_summaries)))
-    cat(sprintf("  ✓ Loaded %d diagnostic records\n", nrow(combined_diagnostics)))
+    cat(sprintf(
+      "  ✓ Loaded %d diagnostic records\n",
+      nrow(combined_diagnostics)
+    ))
     cat(sprintf("  ✓ Loaded %d scenarios\n", nrow(scenario_metadata)))
     cat(sprintf(
       "  ✓ Loaded study design (expected: %d replicates/scenario)\n\n",
@@ -99,7 +107,9 @@ perform_statistical_analysis <- function(data_dir = "outputs/combined_results",
   }
 
   # 1. CONVERGENCE ANALYSIS
-  if (verbose) cat("1. Analyzing convergence diagnostics...\n")
+  if (verbose) {
+    cat("1. Analyzing convergence diagnostics...\n")
+  }
 
   convergence_analysis <- combined_diagnostics %>%
     group_by(method, n_obs, scenario_id, censoring, weight_type) %>%
@@ -163,7 +173,9 @@ perform_statistical_analysis <- function(data_dir = "outputs/combined_results",
   }
 
   # 2. SAMPLING EFFICIENCY ANALYSIS
-  if (verbose) cat("\n2. Analyzing sampling efficiency...\n")
+  if (verbose) {
+    cat("\n2. Analyzing sampling efficiency...\n")
+  }
 
   efficiency_analysis <- combined_diagnostics %>%
     group_by(method, n_obs, scenario_id, censoring, weight_type) %>%
@@ -225,7 +237,9 @@ perform_statistical_analysis <- function(data_dir = "outputs/combined_results",
   }
 
   # 3. POSTERIOR ACCURACY ANALYSIS
-  if (verbose) cat("\n3. Analyzing posterior accuracy (bias, RMSE, coverage)...\n")
+  if (verbose) {
+    cat("\n3. Analyzing posterior accuracy (bias, RMSE, coverage)...\n")
+  }
 
   # All fits
   accuracy_all <- combined_summaries %>%
@@ -364,7 +378,9 @@ perform_statistical_analysis <- function(data_dir = "outputs/combined_results",
   }
 
   # 4. STATISTICAL TESTS
-  if (verbose) cat("\n4. Performing statistical tests (HMC vs MH)...\n")
+  if (verbose) {
+    cat("\n4. Performing statistical tests (HMC vs MH)...\n")
+  }
 
   # Paired ESS/sec data
   paired_ess <- combined_diagnostics %>%
@@ -470,10 +486,14 @@ perform_statistical_analysis <- function(data_dir = "outputs/combined_results",
 
   statistical_tests$effect_sizes <- effect_sizes
 
-  if (verbose) cat("  ✓ Statistical tests complete\n")
+  if (verbose) {
+    cat("  ✓ Statistical tests complete\n")
+  }
 
   # 5. SCENARIO-LEVEL SUMMARY
-  if (verbose) cat("\n5. Creating scenario-level summary...\n")
+  if (verbose) {
+    cat("\n5. Creating scenario-level summary...\n")
+  }
 
   scenario_summaries <- accuracy_analysis %>%
     left_join(
@@ -557,26 +577,36 @@ perform_statistical_analysis <- function(data_dir = "outputs/combined_results",
   }
 
   # SAVE RESULTS
-  if (verbose) cat("\nSaving analysis results...\n")
+  if (verbose) {
+    cat("\nSaving analysis results...\n")
+  }
 
   write_csv(scenario_summaries, file.path(output_dir, "scenario_summaries.csv"))
   saveRDS(scenario_summaries, file.path(output_dir, "scenario_summaries.rds"))
-  if (verbose) cat("  ✓ Saved scenario_summaries.csv/.rds\n")
+  if (verbose) {
+    cat("  ✓ Saved scenario_summaries.csv/.rds\n")
+  }
 
   write_csv(
     convergence_analysis,
     file.path(output_dir, "convergence_analysis.csv")
   )
-  if (verbose) cat("  ✓ Saved convergence_analysis.csv\n")
+  if (verbose) {
+    cat("  ✓ Saved convergence_analysis.csv\n")
+  }
 
   write_csv(
     efficiency_comparison,
     file.path(output_dir, "efficiency_comparisons.csv")
   )
-  if (verbose) cat("  ✓ Saved efficiency_comparisons.csv\n")
+  if (verbose) {
+    cat("  ✓ Saved efficiency_comparisons.csv\n")
+  }
 
   saveRDS(statistical_tests, file.path(output_dir, "statistical_tests.rds"))
-  if (verbose) cat("  ✓ Saved statistical_tests.rds\n")
+  if (verbose) {
+    cat("  ✓ Saved statistical_tests.rds\n")
+  }
 
   # PRINT KEY FINDINGS
   if (verbose) {
