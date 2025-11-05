@@ -7,7 +7,7 @@
 create_figure6_survival_cells(
   data_dirs = c("data/n200", "data/n2000", "data/n10000"),
   which = "S",
-  n_ghost = 30,
+  n_ghost = 10,
   true_alpha = 5,
   true_gamma = 1.5,
   true_beta = -0.5

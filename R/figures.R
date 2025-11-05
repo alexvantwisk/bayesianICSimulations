@@ -408,9 +408,9 @@ compute_beta_metrics <- function(plot_data) {
       weight_regime = forcats::fct_relevel(weight, "none", "low", "high"),
       weight_regime = forcats::fct_recode(
         weight_regime,
-        "No weights" = "none",
-        "Stabilised (low)" = "low",
-        "Adaptive (high)" = "high"
+        "No Weights" = "none",
+        "Low Dispersion" = "low",
+        "High Dispersion" = "high"
       ),
       censoring_level = forcats::fct_relevel(
         censoring,
@@ -492,7 +492,10 @@ create_figure1a_rhat_ecdf <- function(plot_data) {
       .groups = "drop"
     ) %>%
     dplyr::mutate(
-      label = sprintf("%s \u2264 1.01", scales::percent(pct_below, accuracy = 0.1)),
+      label = sprintf(
+        "%s \u2264 1.01",
+        scales::percent(pct_below, accuracy = 0.1)
+      ),
       x = 1.019,
       y = 0.88
     )
@@ -564,7 +567,7 @@ create_figure1b_ess_ridges <- function(plot_data) {
     ) +
     ggridges::geom_density_ridges(
       alpha = 0.55,
-      scale = 0.9,
+      scale = 0.75,
       linewidth = 0.25,
       rel_min_height = 0.01
     ) +
@@ -603,11 +606,12 @@ create_figure1b_ess_ridges <- function(plot_data) {
     ) +
     get_theme_sci() +
     ggplot2::theme(
-      panel.spacing = grid::unit(0.8, "lines"),
+      panel.spacing = grid::unit(1.5, "lines"),
       axis.text.y = ggplot2::element_text(vjust = 0.5),
       legend.position = "bottom"
-    ) +
-    ggplot2::scale_y_discrete(expand = ggplot2::expansion(mult = c(0.05, 0.12)))
+      #     ) +
+      #     ggplot2::scale_y_discrete(expand = ggplot2::expansion(mult = c(0.5, 0.30))
+    )
 }
 
 #' Create Figure 2: Coverage of 95% CIs
@@ -673,6 +677,12 @@ create_figure2_coverage <- function(plot_data) {
       fill = "grey80",
       alpha = 0.3
     ) +
+    ggplot2::geom_line(
+      ggplot2::aes(group = interaction(method, censoring)),
+      position = ggplot2::position_dodge(width = 0.4),
+      linewidth = 0.5,
+      alpha = 0.7
+    ) +
     ggplot2::geom_point(
       position = ggplot2::position_dodge(width = 0.4),
       size = 2.6,
@@ -699,7 +709,8 @@ create_figure2_coverage <- function(plot_data) {
     ) +
     get_theme_sci() +
     ggplot2::theme(
-      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
+      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1),
+      panel.spacing.y = grid::unit(1.5, "lines")
     )
 }
 
@@ -769,7 +780,19 @@ create_figure3b_rmse <- function(plot_data) {
   y_limits <- c(0, y_max * 1.15)
 
   pct_labels <- metrics %>%
-    dplyr::select(weight_regime, censoring_level, sample_size_label, method, mean_rmse) %>%
+    dplyr::group_by(weight_regime, censoring_level, sample_size_label) %>%
+    dplyr::mutate(
+      group_max_y = max(mean_rmse + rmse_mcse, na.rm = TRUE)
+    ) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(
+      weight_regime,
+      censoring_level,
+      sample_size_label,
+      method,
+      mean_rmse,
+      group_max_y
+    ) %>%
     tidyr::pivot_wider(
       names_from = method,
       values_from = mean_rmse
@@ -781,7 +804,7 @@ create_figure3b_rmse <- function(plot_data) {
         scales::percent(pct_diff, accuracy = 0.1),
         NA_character_
       ),
-      y = y_limits[2] * 0.98
+      y = group_max_y * 1.05
     ) %>%
     dplyr::filter(!is.na(label))
 
@@ -794,6 +817,11 @@ create_figure3b_rmse <- function(plot_data) {
       shape = method
     )
   ) +
+    ggplot2::geom_line(
+      ggplot2::aes(group = method),
+      position = dodge,
+      linewidth = 0.5
+    ) +
     ggplot2::geom_pointrange(
       ggplot2::aes(
         ymin = pmax(mean_rmse - rmse_mcse, 0),
@@ -810,25 +838,25 @@ create_figure3b_rmse <- function(plot_data) {
       labels = scales::label_number(accuracy = 0.01),
       expand = ggplot2::expansion(mult = c(0, 0.05))
     ) +
-    ggplot2::geom_text(
-      data = pct_labels,
-      mapping = ggplot2::aes(
-        x = sample_size_label,
-        y = y,
-        label = label
-      ),
-      inherit.aes = FALSE,
-      size = 2.6,
-      colour = "grey30",
-      vjust = 1.1
-    ) +
+    # ggplot2::geom_text(
+    #   data = pct_labels,
+    #   mapping = ggplot2::aes(
+    #     x = sample_size_label,
+    #     y = y,
+    #     label = label
+    #   ),
+    #   inherit.aes = FALSE,
+    #   size = 2.6,
+    #   colour = "black",
+    #   fontface = "bold",
+    #   vjust = 0
+    # ) +
     ggplot2::labs(
       x = "Sample size",
       y = "Root Mean Squared Error of \u03B2\u2081",
       colour = "Method",
       shape = "Method",
-      title = "RMSE of \u03B2\u2081 across simulation scenarios",
-      caption = "Text above panels shows percent difference: (HMC – MH) / MH."
+      title = "RMSE of \u03B2\u2081 across simulation scenarios"
     ) +
     get_theme_sci()
 }
@@ -890,7 +918,10 @@ create_figure3c_bias_rmse_tradeoff <- function(plot_data) {
     ggplot2::geom_point(alpha = 0.95) +
     ggplot2::facet_grid(weight_regime ~ censoring_level) +
     ggplot2::scale_colour_manual(values = get_palette(), name = "Method") +
-    ggplot2::scale_shape_manual(values = c(HMC = 16, MH = 17), name = "Method") +
+    ggplot2::scale_shape_manual(
+      values = c(HMC = 16, MH = 17),
+      name = "Method"
+    ) +
     ggplot2::scale_size_manual(
       values = c("200" = 2.4, "2000" = 3.0, "10000" = 3.6),
       guide = ggplot2::guide_legend(
@@ -912,8 +943,7 @@ create_figure3c_bias_rmse_tradeoff <- function(plot_data) {
       x = expression("Absolute bias of " * beta[1]),
       y = "RMSE of \u03B2\u2081",
       colour = "Method",
-      title = "Bias–RMSE trade-off for \u03B2\u2081",
-      caption = "Horizontal bars show median 95% CI width centred at bias; vertical bars show MCSE for RMSE."
+      title = "Bias–RMSE trade-off for \u03B2\u2081"
     ) +
     get_theme_sci() +
     ggplot2::theme(
@@ -962,18 +992,6 @@ create_figure4_ess_per_sec <- function(plot_data) {
       size = 1.6,
       position = ggplot2::position_dodge(width = 0.75)
     ) +
-    ggplot2::geom_text(
-      data = median_labels,
-      mapping = ggplot2::aes(
-        x = method,
-        y = y_text,
-        label = label
-      ),
-      inherit.aes = FALSE,
-      size = 2.7,
-      colour = "black",
-      vjust = 0
-    ) +
     ggplot2::facet_wrap(~n_obs, nrow = 1) +
     ggplot2::scale_y_log10(
       limits = y_limits,
@@ -984,7 +1002,7 @@ create_figure4_ess_per_sec <- function(plot_data) {
       x = NULL,
       y = "ESS / second (log scale)",
       title = "Sampling efficiency",
-      subtitle = "Median ESS/s shown by black dots and labels"
+      subtitle = "Median ESS/s shown by black dots"
     ) +
     get_theme_sci() +
     ggplot2::theme(legend.position = "none")
@@ -1027,7 +1045,7 @@ create_figure5_runtime <- function(plot_data) {
       legend.position = "bottom",
       strip.placement = "outside",
       strip.text.y = ggplot2::element_text(angle = 0),
-      panel.spacing.y = grid::unit(1.25, "lines")
+      panel.spacing.y = grid::unit(2.0, "lines")
     )
 }
 
@@ -1086,7 +1104,19 @@ create_figure5b_speedup_heatmap <- function(plot_data) {
       limits = fill_limits,
       oob = scales::squish,
       name = "Speed-up (MH ÷ HMC)",
-      labels = function(x) sprintf("%s\u00D7", scales::number(x, accuracy = 0.1))
+      labels = function(x) sprintf("%s x", scales::number(x, accuracy = 0.1)),
+      guide = ggplot2::guide_colourbar(
+        title.position = "left",
+        #title.vjust = 0.5,
+        direction = "horizontal",
+        label.position = "bottom",
+        label.hjust = 0.5,
+        barwidth = grid::unit(4.5, "cm"),
+        barheight = grid::unit(0.4, "cm"),
+        label.theme = ggplot2::element_text(
+          margin = ggplot2::margin(t = 2, r = 6, l = 6)
+        )
+      )
     ) +
     ggplot2::labs(
       x = "Censoring proportion",
@@ -1308,16 +1338,6 @@ create_figure7_means_agreement <- function(plot_data) {
       alpha = 0.45,
       size = 0.8,
       position = ggplot2::position_jitter(width = 0.01, height = 0.01)
-    ) +
-    ggplot2::geom_text(
-      data = stats_df,
-      mapping = ggplot2::aes(x = x, y = y, label = label),
-      inherit.aes = FALSE,
-      hjust = 0,
-      vjust = 1,
-      size = 2.7,
-      colour = "grey15",
-      lineheight = 1
     ) +
     ggplot2::geom_blank(
       data = range_df,
@@ -1909,7 +1929,7 @@ create_figureB3_ci_width_violin <- function(plot_data) {
 create_figure6_survival_cells <- function(
   data_dirs = c("data/n200", "data/n2000", "data/n10000"),
   which = "S",
-  n_ghost = 20,
+  n_ghost = 10,
   true_alpha = 5.0,
   true_gamma = 1.5,
   true_beta = -0.5
@@ -2172,7 +2192,7 @@ create_figure6_survival_cells <- function(
   weight_pal <- c(
     "none" = "#4D4D4D",
     "low" = "#1B9E77",
-    "high" = "#D95F02"
+    "high" = "#A6CEE3"
   )
 
   # Build faceted plot
@@ -2251,5 +2271,8 @@ create_figure6_survival_cells <- function(
       )
     )
 
-  p + ggplot2::guides(colour = ggplot2::guide_legend(override.aes = list(linewidth = 1.6)))
+  p +
+    ggplot2::guides(
+      colour = ggplot2::guide_legend(override.aes = list(linewidth = 1.6))
+    )
 }
