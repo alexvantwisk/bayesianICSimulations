@@ -22,7 +22,6 @@
 #'   \item fig3a_bias.png - Bias by parameter and sample size
 #'   \item fig3b_rmse.png - RMSE by parameter and sample size
 #'   \item fig4_ess_per_sec.png - Sampling efficiency
-#'   \item fig5_runtime.png - Total runtime by scenario
 #'   \item fig6_survival_cells.png - Weighted survival curves by design cell
 #'   \item fig7_means_agreement.png - Agreement of posterior means
 #'   \item figA1_cis_vs_truth.png - Credible intervals vs true value
@@ -153,17 +152,6 @@ save_all_figures <- function(
     file.path(output_dir, "fig4_ess_per_sec"),
     width = 9,
     height = 3.2,
-    dpi = dpi,
-    formats = formats
-  )
-
-  cat("  Creating Figure 5: Runtime...\n")
-  plots$fig5 <- create_figure5_runtime(plot_data)
-  save_figure(
-    plots$fig5,
-    file.path(output_dir, "fig5_runtime"),
-    width = 10,
-    height = 6,
     dpi = dpi,
     formats = formats
   )
@@ -447,9 +435,11 @@ compute_beta_metrics <- function(plot_data) {
     ) %>%
     dplyr::summarise(
       mean_bias = mean(bias, na.rm = TRUE),
-      bias_se = stats::sd(bias, na.rm = TRUE) / sqrt(dplyr::n()),
+      bias_mcse = stats::sd(bias, na.rm = TRUE) / sqrt(dplyr::n()),
       mean_rmse = mean(rmse, na.rm = TRUE),
-      rmse_se = stats::sd(rmse, na.rm = TRUE) / sqrt(dplyr::n()),
+      rmse_mcse = stats::sd(rmse, na.rm = TRUE) / sqrt(dplyr::n()),
+      median_ci_width = stats::median(ci_width, na.rm = TRUE),
+      ci_width_mcse = stats::sd(ci_width, na.rm = TRUE) / sqrt(dplyr::n()),
       .groups = "drop"
     ) %>%
     dplyr::mutate(
@@ -494,27 +484,57 @@ save_figure <- function(
 #' @param plot_data Prepared plot data from prepare_plot_data()
 #' @export
 create_figure1a_rhat_ecdf <- function(plot_data) {
+  facet_labels <- plot_data$res %>%
+    dplyr::filter(!is.na(rhat)) %>%
+    dplyr::group_by(n_obs) %>%
+    dplyr::summarise(
+      pct_below = mean(rhat <= 1.01, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    dplyr::mutate(
+      label = sprintf("%s \u2264 1.01", scales::percent(pct_below, accuracy = 0.1)),
+      x = 1.019,
+      y = 0.88
+    )
+
   ggplot2::ggplot(plot_data$res, ggplot2::aes(rhat, colour = method)) +
-    ggplot2::stat_ecdf(geom = "step", linewidth = 0.5) +
-    ggplot2::geom_vline(xintercept = 1.01, linetype = 2, colour = "grey40") +
-    # ggplot2::annotate(
-    #   "text",
-    #   x = 1.01,
-    #   y = 0.9,
-    #   label = "Convergence threshold",
-    #   hjust = -0.05,
-    #   size = 3,
-    #   colour = "grey30"
-    # ) +
+    ggplot2::stat_ecdf(geom = "step", linewidth = 0.6) +
+    ggplot2::geom_hline(
+      yintercept = 0.95,
+      linetype = "dotted",
+      colour = "grey65",
+      linewidth = 0.4
+    ) +
+    ggplot2::geom_vline(
+      xintercept = 1.005,
+      linetype = "dashed",
+      colour = "grey70",
+      linewidth = 0.4,
+      alpha = 0.6
+    ) +
+    ggplot2::geom_vline(
+      xintercept = 1.01,
+      linetype = 2,
+      colour = "grey30",
+      linewidth = 0.6
+    ) +
+    ggplot2::geom_text(
+      data = facet_labels,
+      mapping = ggplot2::aes(x = x, y = y, label = label),
+      inherit.aes = FALSE,
+      hjust = 1,
+      size = 3
+    ) +
     ggplot2::facet_wrap(~n_obs, nrow = 1) +
     ggplot2::scale_colour_manual(values = get_palette()) +
     ggplot2::labs(
       x = "R-hat",
       y = "ECDF",
       colour = "Method",
-      title = "R-hat ECDFs by sample size"
+      title = "R-hat ECDFs by sample size",
+      subtitle = "Vertical dashed lines mark thresholds at 1.005 and 1.01"
     ) +
-    ggplot2::coord_cartesian(xlim = c(1, 1.02)) +
+    ggplot2::coord_cartesian(xlim = c(1.000, 1.020), ylim = c(0, 1)) +
     get_theme_sci()
 }
 
@@ -522,16 +542,18 @@ create_figure1a_rhat_ecdf <- function(plot_data) {
 #' @param plot_data Prepared plot data from prepare_plot_data()
 #' @export
 create_figure1b_ess_ridges <- function(plot_data) {
-  label_data <- plot_data$res %>%
-    dplyr::distinct(n_obs) %>%
-    dplyr::mutate(
-      x = 400,
-      y = Inf,
-      label = "Minimum ESS (400)"
+  ess_data <- plot_data$res %>%
+    dplyr::filter(!is.na(ess_bulk), ess_bulk > 0)
+
+  median_points <- ess_data %>%
+    dplyr::group_by(n_obs, scenario, method) %>%
+    dplyr::summarise(
+      median_ess = stats::median(ess_bulk, na.rm = TRUE),
+      .groups = "drop"
     )
 
   ggplot2::ggplot(
-    plot_data$res,
+    ess_data,
     ggplot2::aes(x = ess_bulk, y = scenario, fill = method, colour = method)
   ) +
     ggplot2::geom_vline(
@@ -540,19 +562,34 @@ create_figure1b_ess_ridges <- function(plot_data) {
       colour = "grey40",
       linewidth = 0.5
     ) +
-    # ggplot2::geom_text(
-    #   data = label_data,
-    #   mapping = ggplot2::aes(x = x, y = y, label = label),
-    #   inherit.aes = FALSE,
-    #   hjust = -0.05,
-    #   vjust = 1.3,
-    #   size = 2.8,
-    #   colour = "grey30"
-    # ) +
-    ggridges::geom_density_ridges(alpha = 0.5, scale = 0.9, linewidth = 0.2) +
+    ggridges::geom_density_ridges(
+      alpha = 0.55,
+      scale = 0.9,
+      linewidth = 0.25,
+      rel_min_height = 0.01
+    ) +
+    ggplot2::geom_point(
+      data = dplyr::filter(median_points, method == "HMC"),
+      mapping = ggplot2::aes(x = median_ess, y = scenario, colour = method),
+      inherit.aes = FALSE,
+      position = ggplot2::position_nudge(y = 0.11),
+      size = 1.8,
+      shape = 16,
+      stroke = 0.2
+    ) +
+    ggplot2::geom_point(
+      data = dplyr::filter(median_points, method == "MH"),
+      mapping = ggplot2::aes(x = median_ess, y = scenario, colour = method),
+      inherit.aes = FALSE,
+      position = ggplot2::position_nudge(y = -0.11),
+      size = 1.8,
+      shape = 17,
+      stroke = 0.2
+    ) +
     ggplot2::facet_wrap(~n_obs, nrow = 1) +
     ggplot2::scale_x_log10(
-      labels = scales::label_number(scale_cut = scales::cut_short_scale())
+      breaks = c(400, 1000, 3000, 10000),
+      labels = c("400", "1K", "3K", "10K")
     ) +
     ggplot2::scale_fill_manual(values = get_palette()) +
     ggplot2::scale_colour_manual(values = get_palette()) +
@@ -561,9 +598,16 @@ create_figure1b_ess_ridges <- function(plot_data) {
       y = "Scenario (Censoring, Weight)",
       fill = "Method",
       colour = "Method",
-      title = "ESS distributions by scenario"
+      title = "ESS distributions by scenario",
+      subtitle = "Dashed line marks ESS = 400; points indicate method-specific medians"
     ) +
-    get_theme_sci()
+    get_theme_sci() +
+    ggplot2::theme(
+      panel.spacing = grid::unit(0.8, "lines"),
+      axis.text.y = ggplot2::element_text(vjust = 0.5),
+      legend.position = "bottom"
+    ) +
+    ggplot2::scale_y_discrete(expand = ggplot2::expansion(mult = c(0.05, 0.12)))
 }
 
 #' Create Figure 2: Coverage of 95% CIs
@@ -578,7 +622,8 @@ create_figure2_coverage <- function(plot_data) {
       method,
       parameter,
       covered = contains_truth
-    )
+    ) %>%
+    filter(parameter == "beta")
 
   cov_sum <- cov %>%
     group_by(n_obs, censoring, weight, method, parameter) %>%
@@ -595,7 +640,8 @@ create_figure2_coverage <- function(plot_data) {
       scnx = forcats::fct_inorder(scnx),
       scnx_id = as.numeric(scnx)
     ) %>%
-    filter(!is.na(coverage))
+    filter(!is.na(coverage)) %>%
+    mutate(parameter = factor(parameter, levels = "beta"))
 
   cov_band <- cov_sum %>%
     distinct(n_obs, parameter, scnx_id, lo, hi)
@@ -629,24 +675,32 @@ create_figure2_coverage <- function(plot_data) {
     ) +
     ggplot2::geom_point(
       position = ggplot2::position_dodge(width = 0.4),
-      size = 2
+      size = 2.6,
+      stroke = 0.4
     ) +
-    ggplot2::facet_grid(n_obs ~ parameter) +
+    ggplot2::facet_grid(n_obs ~ ., labeller = ggplot2::label_value) +
     ggplot2::scale_x_continuous(
       breaks = sort(unique(cov_sum$scnx_id)),
       labels = levels(cov_sum$scnx)
     ) +
-    ggplot2::scale_y_continuous(labels = scales::label_percent()) +
+    ggplot2::scale_y_continuous(
+      labels = scales::label_percent(),
+      limits = c(0.75, 1.0),
+      expand = ggplot2::expansion(mult = c(0, 0.02))
+    ) +
     ggplot2::scale_colour_manual(values = get_palette()) +
     ggplot2::labs(
       x = "Scenario (Censoring, Weight)",
       y = "Coverage proportion",
       colour = "Method",
       shape = "Method",
-      title = "Coverage of 95% credible intervals with MC uncertainty bands"
+      title = expression("Coverage of 95% credible intervals for " * beta[1]),
+      caption = "Shaded band marks 95% ± 2 × MCSE from scenario replicates."
     ) +
     get_theme_sci() +
-    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 35, hjust = 1))
+    ggplot2::theme(
+      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
+    )
 }
 
 #' Create Figure 3a: Bias by parameter
@@ -655,6 +709,11 @@ create_figure2_coverage <- function(plot_data) {
 create_figure3a_bias <- function(plot_data) {
   metrics <- compute_beta_metrics(plot_data)
   dodge <- ggplot2::position_dodge(width = 0.5)
+  y_radius <- max(abs(metrics$mean_bias) + metrics$bias_mcse, na.rm = TRUE)
+  if (!is.finite(y_radius)) {
+    y_radius <- 0.1
+  }
+  y_limits <- c(-y_radius, y_radius)
 
   ggplot2::ggplot(
     metrics,
@@ -665,11 +724,16 @@ create_figure3a_bias <- function(plot_data) {
       shape = method
     )
   ) +
-    ggplot2::geom_hline(yintercept = 0, linetype = 2, colour = "grey60") +
+    ggplot2::geom_hline(
+      yintercept = 0,
+      linetype = "dashed",
+      colour = "grey20",
+      linewidth = 0.5
+    ) +
     ggplot2::geom_pointrange(
       ggplot2::aes(
-        ymin = mean_bias - bias_se,
-        ymax = mean_bias + bias_se
+        ymin = mean_bias - bias_mcse,
+        ymax = mean_bias + bias_mcse
       ),
       position = dodge,
       linewidth = 0.6
@@ -677,12 +741,17 @@ create_figure3a_bias <- function(plot_data) {
     ggplot2::facet_grid(weight_regime ~ censoring_level) +
     ggplot2::scale_colour_manual(values = get_palette()) +
     ggplot2::scale_shape_manual(values = c(HMC = 16, MH = 17)) +
+    ggplot2::scale_y_continuous(
+      limits = y_limits,
+      labels = scales::label_number(accuracy = 0.01),
+      expand = ggplot2::expansion(mult = c(0, 0.05))
+    ) +
     ggplot2::labs(
       x = "Sample size",
       y = expression("Mean bias of " * beta[1]),
       colour = "Method",
       shape = "Method",
-      title = "Mean Bias of \u03B2\u2081 Across Simulation Scenarios"
+      title = "Mean bias of \u03B2\u2081 across simulation scenarios"
     ) +
     get_theme_sci()
 }
@@ -693,6 +762,28 @@ create_figure3a_bias <- function(plot_data) {
 create_figure3b_rmse <- function(plot_data) {
   metrics <- compute_beta_metrics(plot_data)
   dodge <- ggplot2::position_dodge(width = 0.5)
+  y_max <- max(metrics$mean_rmse + metrics$rmse_mcse, na.rm = TRUE)
+  if (!is.finite(y_max) || y_max <= 0) {
+    y_max <- 0.5
+  }
+  y_limits <- c(0, y_max * 1.15)
+
+  pct_labels <- metrics %>%
+    dplyr::select(weight_regime, censoring_level, sample_size_label, method, mean_rmse) %>%
+    tidyr::pivot_wider(
+      names_from = method,
+      values_from = mean_rmse
+    ) %>%
+    dplyr::mutate(
+      pct_diff = (HMC - MH) / MH,
+      label = dplyr::if_else(
+        is.finite(pct_diff),
+        scales::percent(pct_diff, accuracy = 0.1),
+        NA_character_
+      ),
+      y = y_limits[2] * 0.98
+    ) %>%
+    dplyr::filter(!is.na(label))
 
   ggplot2::ggplot(
     metrics,
@@ -705,8 +796,8 @@ create_figure3b_rmse <- function(plot_data) {
   ) +
     ggplot2::geom_pointrange(
       ggplot2::aes(
-        ymin = pmax(mean_rmse - rmse_se, 0),
-        ymax = mean_rmse + rmse_se
+        ymin = pmax(mean_rmse - rmse_mcse, 0),
+        ymax = mean_rmse + rmse_mcse
       ),
       position = dodge,
       linewidth = 0.6
@@ -714,13 +805,30 @@ create_figure3b_rmse <- function(plot_data) {
     ggplot2::facet_grid(weight_regime ~ censoring_level) +
     ggplot2::scale_colour_manual(values = get_palette()) +
     ggplot2::scale_shape_manual(values = c(HMC = 16, MH = 17)) +
-    ggplot2::scale_y_log10(labels = scales::label_number()) +
+    ggplot2::scale_y_continuous(
+      limits = y_limits,
+      labels = scales::label_number(accuracy = 0.01),
+      expand = ggplot2::expansion(mult = c(0, 0.05))
+    ) +
+    ggplot2::geom_text(
+      data = pct_labels,
+      mapping = ggplot2::aes(
+        x = sample_size_label,
+        y = y,
+        label = label
+      ),
+      inherit.aes = FALSE,
+      size = 2.6,
+      colour = "grey30",
+      vjust = 1.1
+    ) +
     ggplot2::labs(
       x = "Sample size",
       y = "Root Mean Squared Error of \u03B2\u2081",
       colour = "Method",
       shape = "Method",
-      title = "RMSE of \u03B2\u2081 Across Simulation Scenarios"
+      title = "RMSE of \u03B2\u2081 across simulation scenarios",
+      caption = "Text above panels shows percent difference: (HMC – MH) / MH."
     ) +
     get_theme_sci()
 }
@@ -730,6 +838,22 @@ create_figure3b_rmse <- function(plot_data) {
 #' @export
 create_figure3c_bias_rmse_tradeoff <- function(plot_data) {
   metrics <- compute_beta_metrics(plot_data)
+  ci_segments <- metrics %>%
+    dplyr::mutate(
+      ci_half = median_ci_width / 2,
+      seg_xmin = pmax(abs_bias - ci_half, 0),
+      seg_xmax = abs_bias + ci_half
+    )
+
+  x_max <- max(ci_segments$seg_xmax, na.rm = TRUE)
+  y_max <- max(metrics$mean_rmse + metrics$rmse_mcse, na.rm = TRUE)
+
+  if (!is.finite(x_max) || x_max <= 0) {
+    x_max <- 0.1
+  }
+  if (!is.finite(y_max) || y_max <= 0) {
+    y_max <- 0.5
+  }
 
   ggplot2::ggplot(
     metrics,
@@ -737,65 +861,130 @@ create_figure3c_bias_rmse_tradeoff <- function(plot_data) {
       x = abs_bias,
       y = mean_rmse,
       colour = method,
-      shape = sample_size_label
+      shape = method,
+      size = sample_size_label
     )
   ) +
-    ggplot2::geom_errorbarh(
-      ggplot2::aes(
-        xmin = pmax(abs_bias - bias_se, 0),
-        xmax = abs_bias + bias_se
+    ggplot2::geom_segment(
+      data = ci_segments,
+      mapping = ggplot2::aes(
+        x = seg_xmin,
+        xend = seg_xmax,
+        y = mean_rmse,
+        yend = mean_rmse,
+        colour = method
       ),
-      height = 0,
-      alpha = 0.4
+      inherit.aes = FALSE,
+      linewidth = 0.9,
+      alpha = 0.45
     ) +
     ggplot2::geom_errorbar(
       ggplot2::aes(
-        ymin = pmax(mean_rmse - rmse_se, 0),
-        ymax = mean_rmse + rmse_se
+        ymin = pmax(mean_rmse - rmse_mcse, 0),
+        ymax = mean_rmse + rmse_mcse
       ),
       width = 0,
-      alpha = 0.4
+      alpha = 0.5,
+      linewidth = 0.6
     ) +
-    ggplot2::geom_point(size = 2.5, alpha = 0.9) +
+    ggplot2::geom_point(alpha = 0.95) +
     ggplot2::facet_grid(weight_regime ~ censoring_level) +
     ggplot2::scale_colour_manual(values = get_palette(), name = "Method") +
-    ggplot2::scale_shape_manual(
-      values = c("200" = 15, "2000" = 17, "10000" = 19),
-      name = "Sample size"
+    ggplot2::scale_shape_manual(values = c(HMC = 16, MH = 17), name = "Method") +
+    ggplot2::scale_size_manual(
+      values = c("200" = 2.4, "2000" = 3.0, "10000" = 3.6),
+      guide = ggplot2::guide_legend(
+        title = "Sample size",
+        override.aes = list(shape = 16, colour = "grey30", alpha = 1)
+      )
     ) +
-    ggplot2::scale_y_log10(labels = scales::label_number()) +
+    ggplot2::scale_x_continuous(
+      limits = c(0, x_max * 1.1),
+      expand = ggplot2::expansion(mult = c(0, 0.05)),
+      labels = scales::label_number(accuracy = 0.01)
+    ) +
+    ggplot2::scale_y_continuous(
+      limits = c(0, y_max * 1.1),
+      expand = ggplot2::expansion(mult = c(0, 0.05)),
+      labels = scales::label_number(accuracy = 0.01)
+    ) +
     ggplot2::labs(
-      x = expression("Bias of " * beta[1]),
+      x = expression("Absolute bias of " * beta[1]),
       y = "RMSE of \u03B2\u2081",
-      title = "Precision-accuracy trade-off for \u03B2\u2081"
+      colour = "Method",
+      title = "Bias–RMSE trade-off for \u03B2\u2081",
+      caption = "Horizontal bars show median 95% CI width centred at bias; vertical bars show MCSE for RMSE."
     ) +
-    get_theme_sci()
+    get_theme_sci() +
+    ggplot2::theme(
+      panel.grid.major = ggplot2::element_line(colour = "grey88"),
+      panel.grid.minor = ggplot2::element_blank()
+    )
 }
 
 #' Create Figure 4: ESS per second
 #' @param plot_data Prepared plot data from prepare_plot_data()
 #' @export
 create_figure4_ess_per_sec <- function(plot_data) {
+  ess_df <- plot_data$res %>%
+    dplyr::filter(!is.na(ess_per_sec), ess_per_sec > 0)
+
+  median_labels <- ess_df %>%
+    dplyr::group_by(n_obs, method) %>%
+    dplyr::summarise(
+      ess_median = stats::median(ess_per_sec, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    dplyr::mutate(
+      y_text = ess_median * 1.08,
+      label = scales::number(
+        ess_median,
+        accuracy = 0.1,
+        scale_cut = scales::cut_short_scale()
+      )
+    )
+
+  y_limits <- range(ess_df$ess_per_sec, na.rm = TRUE)
+  if (!is.finite(y_limits[1]) || !is.finite(y_limits[2])) {
+    y_limits <- c(1, 1e4)
+  }
+  y_limits[2] <- max(y_limits[2], max(median_labels$y_text, na.rm = TRUE))
+
   ggplot2::ggplot(
-    plot_data$res,
+    ess_df,
     ggplot2::aes(x = method, y = ess_per_sec, fill = method)
   ) +
-    ggplot2::geom_violin(trim = FALSE, alpha = 0.7) +
+    ggplot2::geom_violin(trim = FALSE, alpha = 0.65, linewidth = 0.35) +
     ggplot2::stat_summary(
       fun = median,
       geom = "point",
       colour = "black",
-      size = 1.2
+      size = 1.6,
+      position = ggplot2::position_dodge(width = 0.75)
+    ) +
+    ggplot2::geom_text(
+      data = median_labels,
+      mapping = ggplot2::aes(
+        x = method,
+        y = y_text,
+        label = label
+      ),
+      inherit.aes = FALSE,
+      size = 2.7,
+      colour = "black",
+      vjust = 0
     ) +
     ggplot2::facet_wrap(~n_obs, nrow = 1) +
     ggplot2::scale_y_log10(
+      limits = y_limits,
       labels = scales::label_number(scale_cut = scales::cut_short_scale())
     ) +
     ggplot2::scale_fill_manual(values = get_palette()) +
     ggplot2::labs(
       x = NULL,
       y = "ESS / second (log scale)",
-      title = "Sampling efficiency"
+      title = "Sampling efficiency",
+      subtitle = "Median ESS/s shown by black dots and labels"
     ) +
     get_theme_sci() +
     ggplot2::theme(legend.position = "none")
@@ -864,7 +1053,6 @@ create_figure5b_speedup_heatmap <- function(plot_data) {
     ) %>%
     dplyr::mutate(
       speedup_ratio = median_mh / median_hmc,
-      log2_ratio = log2(speedup_ratio),
       label = dplyr::if_else(
         is.finite(speedup_ratio),
         sprintf("%s\u00D7", scales::number(speedup_ratio, accuracy = 0.1)),
@@ -872,20 +1060,16 @@ create_figure5b_speedup_heatmap <- function(plot_data) {
       )
     )
 
-  max_abs <- max(abs(speedup_df$log2_ratio), na.rm = TRUE)
-  if (!is.finite(max_abs) || max_abs == 0) {
-    fill_limits <- c(-1, 1)
+  max_dev <- max(abs(log(speedup_df$speedup_ratio)), na.rm = TRUE)
+  if (!is.finite(max_dev) || max_dev == 0) {
+    fill_limits <- c(0.5, 2)
   } else {
-    fill_limits <- c(-max_abs, max_abs)
-  }
-  legend_labels <- function(x) {
-    ratio <- 2^x
-    sprintf("%s\u00D7", scales::number(ratio, accuracy = 0.1))
+    fill_limits <- exp(c(-max_dev, max_dev))
   }
 
   ggplot2::ggplot(
     speedup_df,
-    ggplot2::aes(x = censoring, y = weight, fill = log2_ratio)
+    ggplot2::aes(x = censoring, y = weight, fill = speedup_ratio)
   ) +
     ggplot2::geom_tile(colour = "white", linewidth = 0.4) +
     ggplot2::geom_text(
@@ -898,16 +1082,17 @@ create_figure5b_speedup_heatmap <- function(plot_data) {
       low = "#F28E2B",
       mid = "white",
       high = "#2C7FB8",
-      midpoint = 0,
+      midpoint = 1,
       limits = fill_limits,
-      name = "Relative speed (log2 ratio)",
-      labels = legend_labels
+      oob = scales::squish,
+      name = "Speed-up (MH ÷ HMC)",
+      labels = function(x) sprintf("%s\u00D7", scales::number(x, accuracy = 0.1))
     ) +
     ggplot2::labs(
       x = "Censoring proportion",
       y = "Weighting scheme",
       title = "Relative runtime of MH vs HMC",
-      subtitle = "Tiles display log2(MH / HMC) speed-up; positive values (blue) indicate that HMC is faster"
+      subtitle = "Tiles display MH runtime divided by HMC runtime (blue = HMC faster)"
     ) +
     get_theme_sci() +
     ggplot2::theme(
@@ -1072,6 +1257,34 @@ create_figure7_means_agreement <- function(plot_data) {
       n_obs = factor(n_obs, levels = c("n = 200", "n = 2000", "n = 10000"))
     )
 
+  range_df <- est_df %>%
+    dplyr::group_by(parameter, n_obs) %>%
+    dplyr::summarise(
+      axis_min = min(c(mean_hmc, mean_mh), na.rm = TRUE),
+      axis_max = max(c(mean_hmc, mean_mh), na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  stats_df <- est_df %>%
+    dplyr::group_by(parameter, n_obs) %>%
+    dplyr::summarise(
+      r = stats::cor(mean_hmc, mean_mh),
+      slope = stats::coef(stats::lm(mean_mh ~ mean_hmc))[2],
+      intercept = stats::coef(stats::lm(mean_mh ~ mean_hmc))[1],
+      .groups = "drop"
+    ) %>%
+    dplyr::left_join(range_df, by = c("parameter", "n_obs")) %>%
+    dplyr::mutate(
+      x = axis_min + 0.05 * (axis_max - axis_min),
+      y = axis_max - 0.08 * (axis_max - axis_min),
+      label = sprintf(
+        "r = %.3f\nslope = %.2f\nint. = %.2f",
+        r,
+        slope,
+        intercept
+      )
+    )
+
   ggplot2::ggplot(est_df, ggplot2::aes(x = mean_hmc, y = mean_mh)) +
     # 2D density contours in background
     ggplot2::stat_density_2d(
@@ -1086,24 +1299,34 @@ create_figure7_means_agreement <- function(plot_data) {
     ggplot2::geom_abline(
       slope = 1,
       intercept = 0,
-      linetype = 2,
-      colour = "grey50",
-      linewidth = 0.6
-    ) +
-    # Annotation for diagonal
-    ggplot2::annotate(
-      "text",
-      x = -Inf,
-      y = Inf,
-      label = "Perfect agreement",
-      angle = 45,
-      hjust = -0.2,
-      vjust = 1.5,
-      size = 2.8,
-      colour = "grey30"
+      colour = "black",
+      linewidth = 0.5
     ) +
     # Points with reduced alpha (red)
-    ggplot2::geom_point(colour = "red", alpha = 0.35, size = 0.6) +
+    ggplot2::geom_point(
+      colour = "#2C7FB8",
+      alpha = 0.45,
+      size = 0.8,
+      position = ggplot2::position_jitter(width = 0.01, height = 0.01)
+    ) +
+    ggplot2::geom_text(
+      data = stats_df,
+      mapping = ggplot2::aes(x = x, y = y, label = label),
+      inherit.aes = FALSE,
+      hjust = 0,
+      vjust = 1,
+      size = 2.7,
+      colour = "grey15",
+      lineheight = 1
+    ) +
+    ggplot2::geom_blank(
+      data = range_df,
+      mapping = ggplot2::aes(x = axis_min, y = axis_min)
+    ) +
+    ggplot2::geom_blank(
+      data = range_df,
+      mapping = ggplot2::aes(x = axis_max, y = axis_max)
+    ) +
     ggplot2::facet_grid(n_obs ~ parameter) +
     ggplot2::coord_equal() +
     ggplot2::labs(
@@ -1142,6 +1365,10 @@ create_figureA1_cis_vs_truth <- function(plot_data) {
       scenario = factor(
         paste(censoring, weight, sep = ", "),
         levels = scenario_levels
+      ),
+      n_obs = factor(
+        n_obs,
+        levels = c("n = 200", "n = 2000", "n = 10000")
       )
     )
 
@@ -1157,6 +1384,25 @@ create_figureA1_cis_vs_truth <- function(plot_data) {
     n_obs = levels(plot_data$res$n_obs)
   )
 
+  param_limits <- ci %>%
+    dplyr::group_by(parameter) %>%
+    dplyr::summarise(
+      xmin = min(lower, na.rm = TRUE),
+      xmax = max(upper, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    dplyr::left_join(truth, by = "parameter") %>%
+    dplyr::mutate(
+      xmin = pmin(xmin, truth),
+      xmax = pmax(xmax, truth)
+    ) %>%
+    tidyr::crossing(
+      n_obs = levels(ci$n_obs),
+      scenario = levels(ci$scenario)
+    )
+
+  dodge <- ggplot2::position_dodge(width = 0.7)
+
   ggplot2::ggplot(
     ci,
     ggplot2::aes(y = scenario, xmin = lower, xmax = upper, colour = method)
@@ -1164,20 +1410,30 @@ create_figureA1_cis_vs_truth <- function(plot_data) {
     ggplot2::geom_errorbarh(
       ggplot2::aes(alpha = hit),
       height = 0.3,
-      position = ggplot2::position_dodge(width = 0.6),
-      linewidth = 0.6
+      position = dodge,
+      linewidth = 0.55
     ) +
     ggplot2::geom_point(
       ggplot2::aes(x = est, shape = method, alpha = hit),
-      position = ggplot2::position_dodge(width = 0.6),
-      size = 1.8,
-      stroke = 1
+      position = dodge,
+      size = 1.6,
+      stroke = 0.8
     ) +
     ggplot2::geom_vline(
       data = truth_lines,
       ggplot2::aes(xintercept = truth, linetype = "True value"),
       colour = "grey30",
       linewidth = 0.6
+    ) +
+    ggplot2::geom_blank(
+      data = param_limits,
+      mapping = ggplot2::aes(x = xmin, y = scenario),
+      inherit.aes = FALSE
+    ) +
+    ggplot2::geom_blank(
+      data = param_limits,
+      mapping = ggplot2::aes(x = xmax, y = scenario),
+      inherit.aes = FALSE
     ) +
     ggplot2::facet_grid(parameter ~ n_obs, scales = "free_y") +
     ggplot2::scale_colour_manual(values = get_palette()) +
@@ -1199,7 +1455,8 @@ create_figureA1_cis_vs_truth <- function(plot_data) {
       y = "Scenario (Censoring, Weight)",
       colour = "Method",
       shape = "Method",
-      title = "Credible intervals vs true value"
+      title = "Credible intervals vs true value",
+      subtitle = "Dashed vertical line indicates truth; point opacity encodes coverage"
     ) +
     get_theme_sci()
 }
@@ -1266,8 +1523,8 @@ create_figureA2_ci_matrix <- function(plot_data) {
     mutate(
       scenario = forcats::fct_inorder(scenario),
       cover_flag = factor(
-        if_else(cover >= 0.95, ">=95%", "<95%"),
-        levels = c(">=95%", "<95%")
+        dplyr::if_else(cover >= 0.95, "Covered", "Under-covered"),
+        levels = c("Covered", "Under-covered")
       )
     ) %>%
     ungroup()
@@ -1290,6 +1547,26 @@ create_figureA2_ci_matrix <- function(plot_data) {
     ) %>%
     tidyr::drop_na(truth)
 
+  axis_limits <- ci_sum %>%
+    dplyr::group_by(parameter, n_obs) %>%
+    dplyr::summarise(
+      xmin = min(lower, na.rm = TRUE),
+      xmax = max(upper, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    dplyr::left_join(
+      truth %>% mutate(parameter = as.character(parameter)),
+      by = "parameter"
+    ) %>%
+    dplyr::mutate(
+      xmin = pmin(xmin, truth),
+      xmax = pmax(xmax, truth)
+    ) %>%
+    tidyr::crossing(
+      method = levels(ci_sum$method),
+      scenario = levels(ci_sum$scenario)
+    )
+
   ggplot2::ggplot(
     ci_sum,
     ggplot2::aes(y = scenario, xmin = lower, xmax = upper, colour = method)
@@ -1307,9 +1584,19 @@ create_figureA2_ci_matrix <- function(plot_data) {
     ggplot2::geom_vline(
       data = truth_panel,
       mapping = ggplot2::aes(xintercept = truth),
-      colour = "grey40",
+      colour = "grey35",
       linetype = 2,
       linewidth = 0.7
+    ) +
+    ggplot2::geom_blank(
+      data = axis_limits,
+      mapping = ggplot2::aes(x = xmin, y = scenario),
+      inherit.aes = FALSE
+    ) +
+    ggplot2::geom_blank(
+      data = axis_limits,
+      mapping = ggplot2::aes(x = xmax, y = scenario),
+      inherit.aes = FALSE
     ) +
     ggplot2::facet_grid(
       rows = ggplot2::vars(parameter, n_obs),
@@ -1318,9 +1605,9 @@ create_figureA2_ci_matrix <- function(plot_data) {
     ) +
     ggplot2::scale_colour_manual(values = get_palette(), drop = FALSE) +
     ggplot2::scale_shape_manual(
-      values = c(">=95%" = 16, "<95%" = 1),
+      values = c("Covered" = 16, "Under-covered" = 1),
       drop = FALSE,
-      name = "Coverage"
+      name = "\u25CF covered / \u25CB under-covered"
     ) +
     ggplot2::labs(
       title = "Credible intervals vs true value by parameter, sample size, and method",
@@ -1329,8 +1616,9 @@ create_figureA2_ci_matrix <- function(plot_data) {
     ) +
     get_theme_sci() +
     ggplot2::theme(
-      panel.spacing.y = grid::unit(1.5, "lines"),
-      axis.text.y = ggplot2::element_text(size = 10)
+      panel.spacing.y = grid::unit(1.3, "lines"),
+      panel.spacing.x = grid::unit(1.1, "lines"),
+      axis.text.y = ggplot2::element_text(size = 9)
     )
 }
 
@@ -1413,8 +1701,8 @@ create_figureB1_precision_tradeoff <- function(plot_data) {
     ggplot2::geom_line(
       ggplot2::aes(group = pair_id),
       colour = "grey70",
-      linewidth = 0.3,
-      alpha = 0.7
+      linewidth = 0.4,
+      alpha = 0.6
     ) +
     # Error bars with reduced alpha
     ggplot2::geom_errorbar(
@@ -1430,7 +1718,10 @@ create_figureB1_precision_tradeoff <- function(plot_data) {
       alpha = 0.6
     ) +
     # Points on top with distinct shapes
-    ggplot2::geom_point(size = 2.5, stroke = 0.8) +
+    ggplot2::geom_point(
+      size = 2.5,
+      stroke = 0.8
+    ) +
     ggplot2::facet_grid(parameter ~ n_obs, scales = "free_x") +
     ggplot2::scale_colour_manual(values = get_palette()) +
     ggplot2::scale_shape_manual(values = c(HMC = 16, MH = 17)) + # Circle, triangle
@@ -1453,12 +1744,14 @@ create_figureB1_precision_tradeoff <- function(plot_data) {
 #' @param plot_data Prepared plot data from prepare_plot_data()
 #' @export
 create_figureB2_coverage_heatmap <- function(plot_data) {
-  scenario_levels <- tidyr::expand_grid(
-    censoring = levels(plot_data$res$censoring),
-    weight = levels(plot_data$res$weight)
-  ) %>%
-    mutate(level = paste(censoring, weight, sep = ", ")) %>%
-    pull(level)
+  censor_levels <- levels(plot_data$res$censoring)
+  weight_levels <- levels(plot_data$res$weight)
+  scenario_levels <- unlist(
+    lapply(
+      weight_levels,
+      function(w) paste(censor_levels, w, sep = ", ")
+    )
+  )
 
   ci <- plot_data$res %>%
     transmute(
@@ -1488,6 +1781,13 @@ create_figureB2_coverage_heatmap <- function(plot_data) {
     mutate(
       coverage_bias = coverage - 0.95,
       panel_id = interaction(parameter, n_obs, sep = " | ")
+    ) %>%
+    mutate(
+      label = dplyr::if_else(
+        is.finite(coverage_bias),
+        sprintf("%+.1f", coverage_bias * 100),
+        "NA"
+      )
     )
 
   ggplot2::ggplot(
@@ -1495,6 +1795,11 @@ create_figureB2_coverage_heatmap <- function(plot_data) {
     ggplot2::aes(x = scenario, y = panel_id, fill = coverage_bias)
   ) +
     ggplot2::geom_tile(colour = "white") +
+    ggplot2::geom_text(
+      ggplot2::aes(label = label),
+      colour = "grey15",
+      size = 2.6
+    ) +
     ggplot2::facet_wrap(~method, nrow = 1) +
     ggplot2::scale_fill_gradient2(
       limits = c(-0.10, 0.10),
@@ -1504,7 +1809,8 @@ create_figureB2_coverage_heatmap <- function(plot_data) {
       mid = "#f7f7f7",
       high = "#2166AC",
       midpoint = 0,
-      name = "Coverage bias\n(observed - 0.95)"
+      name = "observed\u20130.95 (absolute %)",
+      labels = function(x) sprintf("%+.1f", x * 100)
     ) +
     ggplot2::labs(
       x = "Scenario (Censoring, Weight)",
@@ -1526,16 +1832,27 @@ create_figureB3_ci_width_violin <- function(plot_data) {
     filter(!is.na(q2.5), !is.na(q97.5)) %>%
     mutate(width = q97.5 - q2.5)
 
+  iqr_summary <- function(y) {
+    qs <- stats::quantile(y, probs = c(0.25, 0.5, 0.75), na.rm = TRUE)
+    data.frame(y = qs[2], ymin = qs[1], ymax = qs[3])
+  }
+
   ggplot2::ggplot(
     ci_detail,
     ggplot2::aes(x = method, y = width, fill = method)
   ) +
-    ggplot2::geom_violin(trim = FALSE, alpha = 0.7) +
+    ggplot2::geom_violin(trim = FALSE, alpha = 0.65, linewidth = 0.35) +
+    ggplot2::stat_summary(
+      fun.data = iqr_summary,
+      geom = "linerange",
+      colour = "black",
+      linewidth = 1.1
+    ) +
     ggplot2::stat_summary(
       fun = median,
       geom = "point",
       colour = "black",
-      size = 1
+      size = 1.4
     ) +
     ggplot2::facet_grid(parameter ~ n_obs) +
     ggplot2::scale_fill_manual(values = get_palette()) +
@@ -1543,10 +1860,14 @@ create_figureB3_ci_width_violin <- function(plot_data) {
       x = NULL,
       y = "CI width",
       fill = "Method",
-      title = "Distribution of credible interval widths"
+      title = "Distribution of credible interval widths",
+      subtitle = "Black dot = median; thick bar = interquartile range"
     ) +
     get_theme_sci() +
-    ggplot2::theme(legend.position = "bottom")
+    ggplot2::theme(
+      legend.position = "bottom",
+      panel.grid.minor = ggplot2::element_blank()
+    )
 }
 
 #' Create Figure 6: Weighted Survival Curves by Design Cell
@@ -1588,7 +1909,7 @@ create_figureB3_ci_width_violin <- function(plot_data) {
 create_figure6_survival_cells <- function(
   data_dirs = c("data/n200", "data/n2000", "data/n10000"),
   which = "S",
-  n_ghost = 30,
+  n_ghost = 20,
   true_alpha = 5.0,
   true_gamma = 1.5,
   true_beta = -0.5
@@ -1848,6 +2169,12 @@ create_figure6_survival_cells <- function(
 
   true_df <- bind_rows(true_list)
 
+  weight_pal <- c(
+    "none" = "#4D4D4D",
+    "low" = "#1B9E77",
+    "high" = "#D95F02"
+  )
+
   # Build faceted plot
   y_lab <- switch(
     which,
@@ -1872,29 +2199,35 @@ create_figure6_survival_cells <- function(
     # Ghost lines
     ggplot2::geom_line(
       data = ghost_df,
-      ggplot2::aes(y = S, group = rep_id, color = weight_metric_value),
-      alpha = 0.08,
-      linewidth = 0.3
+      ggplot2::aes(y = S, group = rep_id),
+      colour = "grey55",
+      alpha = 0.1,
+      linewidth = 0.28
     ) +
-    # Mean curve
+    # Mean curve (dashed)
     ggplot2::geom_line(
       ggplot2::aes(y = S_mean),
-      color = "grey30",
-      linewidth = 0.9
+      colour = "grey40",
+      linetype = "dashed",
+      linewidth = 0.6
+    ) +
+    # Median curve emphasised by weight regime
+    ggplot2::geom_line(
+      ggplot2::aes(y = S_med, colour = weight_type),
+      linewidth = 1.2
     ) +
     # True curve
     ggplot2::geom_line(
       data = true_df,
       ggplot2::aes(x = t, y = S_true),
-      color = "red",
+      colour = "red",
       linewidth = 1.1
     ) +
     # Facets with composite row labels
     ggplot2::facet_grid(row_label ~ weight_type, scales = "free") +
-    # Color scale
-    ggplot2::scale_color_viridis_c(
-      name = "CV(weights)",
-      guide = "none"
+    ggplot2::scale_colour_manual(
+      values = weight_pal,
+      name = "Weight regime"
     ) +
     # Theme
     ggplot2::theme_bw(base_size = 10) +
@@ -1902,7 +2235,7 @@ create_figure6_survival_cells <- function(
       panel.grid.minor = ggplot2::element_blank(),
       strip.background = ggplot2::element_rect(fill = "grey90"),
       strip.text = ggplot2::element_text(face = "bold", size = 9),
-      legend.position = "none"
+      legend.position = "bottom"
     ) +
     ggplot2::labs(
       x = "Time",
@@ -1911,11 +2244,12 @@ create_figure6_survival_cells <- function(
       subtitle = paste0(
         "Ghost curves: ",
         n_ghost,
-        " replicates per cell | ",
+        " replicates per cell (grey, \u03B1 = 0.1) | ",
         "Ribbons: 50% (dark) and 95% (light) pointwise intervals | ",
+        "Bold colour: median curve by weight regime | ",
         "Red line: true population curve"
       )
     )
 
-  p
+  p + ggplot2::guides(colour = ggplot2::guide_legend(override.aes = list(linewidth = 1.6)))
 }

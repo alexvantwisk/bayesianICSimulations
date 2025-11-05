@@ -43,7 +43,6 @@ Creates the following figures:
 \item fig3a_bias.png - Bias by parameter and sample size
 \item fig3b_rmse.png - RMSE by parameter and sample size
 \item fig4_ess_per_sec.png - Sampling efficiency
-\item fig5_runtime.png - Total runtime by scenario
 \item fig6_survival_cells.png - Weighted survival curves by design cell
 \item fig7_means_agreement.png - Agreement of posterior means
 \item figA1_cis_vs_truth.png - Credible intervals vs true value

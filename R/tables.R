@@ -1,3 +1,5 @@
+library(tidyverse)
+library(gt)
 #' Mean Runtime Table
 #'
 #' Creates a gt table showing mean runtime by method, sample size, censoring,
@@ -20,7 +22,7 @@ mean_runtime <- function(data) {
   }
 
   # Prepare data: calculate mean total_time by method, n_obs, censoring, weight_type
-  df <- combined_summaries %>%
+  df <- df %>%
     dplyr::select(
       method,
       n_obs,
@@ -107,7 +109,7 @@ mean_runtime <- function(data) {
     )
 
   # Display the table
-  runtime_table
+  runtime_table %>% as_latex() %>% as.character()
 }
 
 #' Mean ESS per Second Table
@@ -224,7 +226,7 @@ mean_ess_per_sec <- function(data) {
     )
 
   # Display the table
-  ess_table
+  ess_table %>% as_latex() %>% as.character()
 }
 
 #' Bias Table
@@ -357,7 +359,7 @@ bias_table <- function(parameter = c("alpha", "beta", "gamma"), data) {
       heading.align = "left"
     )
 
-  bias_tbl
+  bias_tbl %>% as_latex() %>% as.character()
 }
 
 #' RMSE Table
@@ -490,7 +492,7 @@ rmse_table <- function(parameter = c("alpha", "beta", "gamma"), data) {
       heading.align = "left"
     )
 
-  rmse_tbl
+  rmse_tbl %>% as_latex() %>% as.character()
 }
 
 #' MCSE Table
@@ -623,7 +625,7 @@ mcse_table <- function(parameter = c("alpha", "beta", "gamma"), data) {
       heading.align = "left"
     )
 
-  mcse_tbl
+  mcse_tbl %>% as_latex() %>% as.character()
 }
 
 #' Standard Deviation Table
@@ -756,7 +758,7 @@ sd_table <- function(parameter = c("alpha", "beta", "gamma"), data) {
       heading.align = "left"
     )
 
-  sd_tbl
+  sd_tbl %>% as_latex() %>% as.character()
 }
 
 #' CI Width and Coverage Table
@@ -941,7 +943,7 @@ ci_coverage_table <- function(parameter = c("alpha", "beta", "gamma"), data) {
       heading.align = "left"
     )
 
-  ci_cov_tbl
+  ci_cov_tbl %>% as_latex() %>% as.character()
 }
 
 #' Sample Size Scaling Table
@@ -1116,5 +1118,102 @@ scaling_table <- function(metric = c("runtime", "ess_per_sec"), data) {
       heading.align = "left"
     )
 
-  scaling_tbl
+  scaling_tbl %>% as_latex() %>% as.character()
+}
+
+#' Save All Tables as LaTeX
+#'
+#' Generates all table functions and saves their LaTeX output to a text file.
+#' Tables are separated by blank lines in the output file.
+#'
+#' @param data Optional data frame. If not provided, loads from
+#'   outputs/combined_results/combined_summaries.rds
+#' @param output_file Path to output file. Default is
+#'   "outputs/tables/latex_tables.txt"
+#'
+#' @return Character string with path to the saved file
+#'
+#' @examples
+#' \dontrun{
+#' # Generate all tables and save to default location
+#' save_all_tables_latex()
+#'
+#' # Use custom data and output location
+#' save_all_tables_latex(my_data, "custom/path/tables.txt")
+#' }
+save_all_tables_latex <- function(data, output_file = "outputs/tables/latex_tables.txt") {
+  # Load data if not provided
+  if (missing(data)) {
+    df <- readRDS("outputs/combined_results/combined_summaries.rds")
+  } else {
+    df <- data
+  }
+
+  # Initialize list to store all table outputs
+  latex_outputs <- list()
+
+  # Generate runtime table
+  message("Generating mean runtime table...")
+  latex_outputs[["runtime"]] <- mean_runtime(df)
+
+  # Generate ESS per second table
+  message("Generating mean ESS per second table...")
+  latex_outputs[["ess_per_sec"]] <- mean_ess_per_sec(df)
+
+  # Generate bias tables for all parameters
+  message("Generating bias tables...")
+  bias_tables <- bias_table(c("alpha", "beta", "gamma"), df)
+  latex_outputs[["bias_alpha"]] <- bias_tables$alpha
+  latex_outputs[["bias_beta"]] <- bias_tables$beta
+  latex_outputs[["bias_gamma"]] <- bias_tables$gamma
+
+  # Generate RMSE tables for all parameters
+  message("Generating RMSE tables...")
+  rmse_tables <- rmse_table(c("alpha", "beta", "gamma"), df)
+  latex_outputs[["rmse_alpha"]] <- rmse_tables$alpha
+  latex_outputs[["rmse_beta"]] <- rmse_tables$beta
+  latex_outputs[["rmse_gamma"]] <- rmse_tables$gamma
+
+  # Generate MCSE tables for all parameters
+  message("Generating MCSE tables...")
+  mcse_tables <- mcse_table(c("alpha", "beta", "gamma"), df)
+  latex_outputs[["mcse_alpha"]] <- mcse_tables$alpha
+  latex_outputs[["mcse_beta"]] <- mcse_tables$beta
+  latex_outputs[["mcse_gamma"]] <- mcse_tables$gamma
+
+  # Generate SD tables for all parameters
+  message("Generating SD tables...")
+  sd_tables <- sd_table(c("alpha", "beta", "gamma"), df)
+  latex_outputs[["sd_alpha"]] <- sd_tables$alpha
+  latex_outputs[["sd_beta"]] <- sd_tables$beta
+  latex_outputs[["sd_gamma"]] <- sd_tables$gamma
+
+  # Generate CI coverage tables for all parameters
+  message("Generating CI width & coverage tables...")
+  ci_tables <- ci_coverage_table(c("alpha", "beta", "gamma"), df)
+  latex_outputs[["ci_coverage_alpha"]] <- ci_tables$alpha
+  latex_outputs[["ci_coverage_beta"]] <- ci_tables$beta
+  latex_outputs[["ci_coverage_gamma"]] <- ci_tables$gamma
+
+  # Generate scaling tables
+  message("Generating scaling tables...")
+  latex_outputs[["scaling_runtime"]] <- scaling_table("runtime", df)
+  latex_outputs[["scaling_ess_per_sec"]] <- scaling_table("ess_per_sec", df)
+
+  # Combine all outputs with blank lines between tables
+  combined_latex <- paste(latex_outputs, collapse = "\n\n")
+
+  # Create output directory if it doesn't exist
+  output_dir <- dirname(output_file)
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+    message("Created directory: ", output_dir)
+  }
+
+  # Write to file
+  writeLines(combined_latex, output_file)
+
+  message("Successfully saved ", length(latex_outputs), " tables to: ", output_file)
+
+  return(invisible(output_file))
 }
