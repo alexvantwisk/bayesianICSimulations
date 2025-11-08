@@ -16,6 +16,7 @@ data/**               # Combined datasets (21.5 MB)
 data/
 compiled_models/**    # Compiled Stan models (platform-specific)
 compiled_models/
+ZIMPHIA/**
 
 # Documentation drafts (optional)
 /ADEMP_Audit.md
