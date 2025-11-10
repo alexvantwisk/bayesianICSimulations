@@ -2276,3 +2276,702 @@ create_figure6_survival_cells <- function(
       colour = ggplot2::guide_legend(override.aes = list(linewidth = 1.6))
     )
 }
+
+# ZIMPHIA Figures -------------------------------------------------------------
+
+# Provide fallbacks if helper functions are not yet defined (e.g., when sourcing
+# this file in isolation during development).
+if (!exists("get_zimphia_paths")) {
+  get_zimphia_paths <- function(base_dir = "mcmc_outputs/zimphia") {
+    list(
+      prepared = file.path(base_dir, "zimphia_prepared_data.rds"),
+      method_comparison = file.path(base_dir, "zimphia_method_comparison.csv"),
+      runtime_comparison = file.path(
+        base_dir,
+        "zimphia_runtime_comparison.csv"
+      ),
+      hmc_summary = file.path(
+        base_dir,
+        "hmc",
+        "summaries",
+        "zimphia_hmc_summary.csv"
+      ),
+      mh_summary = file.path(
+        base_dir,
+        "mh",
+        "summaries",
+        "zimphia_mh_summary.csv"
+      ),
+      hmc_diag = file.path(
+        base_dir,
+        "hmc",
+        "diagnostics",
+        "zimphia_hmc_diagnostics.csv"
+      ),
+      mh_diag = file.path(
+        base_dir,
+        "mh",
+        "diagnostics",
+        "zimphia_mh_diagnostics.csv"
+      ),
+      hmc_draws = file.path(base_dir, "hmc", "draws", "zimphia_hmc_draws.rds"),
+      mh_draws = file.path(base_dir, "mh", "draws", "zimphia_mh_draws.rds"),
+      mh_fit = file.path(base_dir, "mh", "fits", "zimphia_mh_fit.rds")
+    )
+  }
+}
+
+if (!exists("load_zimphia_prepared_data")) {
+  load_zimphia_prepared_data <- function(base_dir = "mcmc_outputs/zimphia") {
+    paths <- get_zimphia_paths(base_dir)
+    if (!file.exists(paths$prepared)) {
+      stop("Prepared ZIMPHIA data not found at: ", paths$prepared)
+    }
+    readRDS(paths$prepared)
+  }
+}
+
+if (!exists("load_zimphia_summaries")) {
+  load_zimphia_summaries <- function(base_dir = "mcmc_outputs/zimphia") {
+    paths <- get_zimphia_paths(base_dir)
+    list(
+      hmc = readr::read_csv(paths$hmc_summary, show_col_types = FALSE),
+      mh = readr::read_csv(paths$mh_summary, show_col_types = FALSE)
+    )
+  }
+}
+
+#' Save ZIMPHIA-specific figures (Figures 3.6–3.8)
+#'
+#' @param output_dir Directory where figures should be written.
+#' @param zimphia_dir Directory containing ZIMPHIA outputs.
+#' @param sim_root Root directory containing simulation datasets (data/n*).
+#' @param formats File formats to save (default png).
+#' @param width Default width for saved figures.
+#' @param height Default height for saved figures.
+#' @param dpi Resolution used by ggsave.
+#'
+#' @return Invisibly returns list of ggplot objects.
+#' @export
+save_zimphia_figures <- function(
+  output_dir = "outputs/figures",
+  zimphia_dir = "mcmc_outputs/zimphia",
+  sim_root = "data",
+  sim_reps_per_cell = 3,
+  formats = "png",
+  width = 10,
+  height = 6,
+  dpi = 320
+) {
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+  }
+
+  plots <- list()
+
+  message("Creating Figure 3.6 — ZIMPHIA interval censoring patterns...")
+  plots$fig3_6 <- create_figure3_6_zimphia_interval_patterns(
+    zimphia_dir = zimphia_dir,
+    sim_root = sim_root,
+    per_cell = sim_reps_per_cell
+  )
+  save_figure(
+    plots$fig3_6,
+    file.path(output_dir, "fig3_6_zimphia_interval_patterns"),
+    width = width,
+    height = height,
+    dpi = dpi,
+    formats = formats
+  )
+
+  message("Creating Figure 3.7 — Convergence diagnostics comparison...")
+  plots$fig3_7 <- create_figure3_7_zimphia_convergence_traces(
+    zimphia_dir = zimphia_dir
+  )
+  save_figure(
+    plots$fig3_7,
+    file.path(output_dir, "fig3_7_zimphia_convergence"),
+    width = 15,
+    height = height,
+    dpi = dpi,
+    formats = formats
+  )
+
+  message(
+    "Creating Figure 3.8 — Posterior distributions for seroconversion model..."
+  )
+  plots$fig3_8 <- create_figure3_8_zimphia_posterior_forest(
+    zimphia_dir = zimphia_dir
+  )
+  save_figure(
+    plots$fig3_8,
+    file.path(output_dir, "fig3_8_zimphia_posterior_forest"),
+    width = width,
+    height = height,
+    dpi = dpi,
+    formats = formats
+  )
+
+  invisible(plots)
+}
+
+#' Internal helper: load ZIMPHIA draws
+#' @keywords internal
+load_zimphia_draws <- function(
+  method = c("hmc", "mh"),
+  base_dir = "mcmc_outputs/zimphia"
+) {
+  method <- match.arg(method)
+  paths <- get_zimphia_paths(base_dir)
+  target <- if (method == "hmc") paths$hmc_draws else paths$mh_draws
+  if (!file.exists(target)) {
+    stop("ZIMPHIA draws not found at: ", target)
+  }
+  readRDS(target)
+}
+
+#' Internal helper: sample simulation interval widths
+#' @keywords internal
+collect_sim_interval_widths <- function(
+  sim_root = "data",
+  per_cell = 3,
+  sample_sizes = c(200, 2000, 10000)
+) {
+  suppressPackageStartupMessages({
+    library(dplyr)
+    library(stringr)
+    library(tidyr)
+    library(purrr)
+    library(tibble)
+  })
+
+  width_list <- purrr::map(sample_sizes, function(n) {
+    dir_path <- file.path(sim_root, paste0("n", n))
+    if (!dir.exists(dir_path)) {
+      warning("Simulation directory not found: ", dir_path)
+      return(tibble())
+    }
+
+    files <- list.files(dir_path, pattern = "\\.rds$", full.names = TRUE)
+    if (length(files) == 0) {
+      return(tibble())
+    }
+
+    meta <- tibble(file = files) %>%
+      dplyr::mutate(
+        fname = basename(file)
+      ) %>%
+      tidyr::extract(
+        fname,
+        regex = "sim_s(\\d+)_r(\\d+)_n(\\d+)_c([0-9.]+)_w([a-z]+)\\.rds",
+        into = c("scenario", "rep", "n_obs", "censoring", "weight_type"),
+        convert = TRUE
+      ) %>%
+      tidyr::drop_na()
+
+    if (nrow(meta) == 0) {
+      return(tibble())
+    }
+
+    meta <- meta %>%
+      dplyr::group_by(n_obs, censoring, weight_type) %>%
+      dplyr::arrange(rep) %>%
+      dplyr::slice_head(n = per_cell) %>%
+      dplyr::ungroup()
+
+    purrr::map2_dfr(
+      meta$file,
+      seq_len(nrow(meta)),
+      function(fpath, idx) {
+        dat <- readRDS(fpath)
+        finite_idx <- is.finite(dat$R)
+        if (!any(finite_idx)) {
+          return(tibble())
+        }
+        tibble(
+          width = pmax(dat$R[finite_idx] - dat$L[finite_idx], 0),
+          gender = if_else(dat$X1[finite_idx] == 1, "Female", "Male"),
+          source = "Simulation",
+          sample_size = meta$n_obs[idx],
+          censoring = meta$censoring[idx],
+          weight_type = meta$weight_type[idx],
+          plot_weight = 1
+        )
+      }
+    )
+  })
+
+  dplyr::bind_rows(width_list)
+}
+
+#' Figure 3.6 — Interval censoring patterns for ZIMPHIA vs simulation
+#'
+#' @param zimphia_dir Directory containing prepared ZIMPHIA data.
+#' @param sim_root Root directory containing simulation datasets.
+#' @param per_cell Number of simulation replicates per design cell.
+#'
+#' @return Patchwork/ggplot object
+#' @export
+create_figure3_6_zimphia_interval_patterns <- function(
+  zimphia_dir = "mcmc_outputs/zimphia",
+  sim_root = "data",
+  per_cell = 3
+) {
+  suppressPackageStartupMessages({
+    library(dplyr)
+    library(ggplot2)
+    library(patchwork)
+    library(scales)
+  })
+
+  zimphia_df <- load_zimphia_prepared_data(zimphia_dir) %>%
+    dplyr::filter(is.finite(R)) %>%
+    dplyr::mutate(
+      width = pmax(R - L, 0),
+      gender = dplyr::if_else(X1 == 1, "Female", "Male"),
+      source = "ZIMPHIA",
+      plot_weight = weight * (n() / sum(weight, na.rm = TRUE))
+    )
+
+  sim_df <- collect_sim_interval_widths(
+    sim_root = sim_root,
+    per_cell = per_cell
+  )
+
+  if (nrow(sim_df) == 0) {
+    warning("Simulation interval widths unavailable; plotting ZIMPHIA only.")
+  }
+
+  combined_overall <- dplyr::bind_rows(
+    zimphia_df %>% dplyr::select(width, source, plot_weight),
+    sim_df %>%
+      dplyr::mutate(plot_weight = 1) %>%
+      dplyr::select(width, source, plot_weight)
+  ) %>%
+    dplyr::filter(is.finite(width))
+
+  xmax <- stats::quantile(combined_overall$width, 0.99, na.rm = TRUE) %>%
+    as.numeric()
+
+  median_lines <- combined_overall %>%
+    dplyr::group_by(source) %>%
+    dplyr::summarise(
+      median_width = stats::median(width, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  interval_stats <- combined_overall %>%
+    dplyr::group_by(source) %>%
+    dplyr::summarise(
+      median = stats::median(width, na.rm = TRUE),
+      p25 = stats::quantile(width, 0.25, na.rm = TRUE),
+      p75 = stats::quantile(width, 0.75, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    dplyr::mutate(
+      summary = sprintf(
+        "%s median %.1f [%.1f–%.1f]",
+        source,
+        median,
+        p25,
+        p75
+      )
+    )
+
+  palette_sources <- c(ZIMPHIA = "#7D3C98", Simulation = "#1B9E77")
+
+  p_overall <- ggplot2::ggplot(
+    combined_overall,
+    ggplot2::aes(
+      x = width,
+      fill = source,
+      colour = source,
+      weight = plot_weight
+    )
+  ) +
+    ggplot2::geom_histogram(
+      position = "identity",
+      alpha = 0.35,
+      binwidth = 1,
+      boundary = 0
+    ) +
+    ggplot2::geom_vline(
+      data = median_lines,
+      ggplot2::aes(xintercept = median_width, colour = source),
+      linetype = "dashed",
+      linewidth = 0.7
+    ) +
+    ggplot2::scale_fill_manual(values = palette_sources, name = "Data source") +
+    ggplot2::scale_colour_manual(values = palette_sources, guide = "none") +
+    ggplot2::coord_cartesian(xlim = c(0, xmax)) +
+    ggplot2::labs(
+      title = "Panel A — Interval width distribution",
+      x = "Interval width (years)",
+      y = "Weighted count",
+      subtitle = paste(interval_stats$summary, collapse = " | ")
+    ) +
+    get_theme_sci()
+
+  gender_df <- dplyr::bind_rows(
+    zimphia_df %>% dplyr::select(width, gender, source, plot_weight),
+    sim_df %>%
+      dplyr::mutate(plot_weight = 1) %>%
+      dplyr::select(width, gender, source, plot_weight)
+  ) %>%
+    dplyr::filter(is.finite(width))
+
+  gender_labels <- zimphia_df %>%
+    dplyr::count(gender, wt = plot_weight) %>%
+    dplyr::mutate(
+      gender_label = sprintf("%s (n = %s)", gender, scales::comma(round(n)))
+    )
+
+  gender_df <- gender_df %>%
+    dplyr::left_join(gender_labels, by = "gender")
+
+  gender_medians <- gender_df %>%
+    dplyr::group_by(gender_label, source) %>%
+    dplyr::summarise(
+      median_width = stats::median(width, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  p_gender <- ggplot2::ggplot(
+    gender_df,
+    ggplot2::aes(
+      x = width,
+      colour = source,
+      fill = source,
+      weight = plot_weight
+    )
+  ) +
+    ggplot2::geom_density(alpha = 0.12, adjust = 1.2, linewidth = 0.9) +
+    ggplot2::geom_vline(
+      data = gender_medians,
+      ggplot2::aes(xintercept = median_width, colour = source),
+      linetype = "dashed",
+      linewidth = 0.6
+    ) +
+    ggplot2::facet_wrap(~gender_label, nrow = 1) +
+    ggplot2::scale_colour_manual(values = palette_sources, guide = "none") +
+    ggplot2::scale_fill_manual(values = palette_sources, guide = "none") +
+    ggplot2::coord_cartesian(xlim = c(0, xmax)) +
+    ggplot2::labs(
+      title = "Panel B — Stratified by gender",
+      x = "Interval width (years)",
+      y = "Weighted density"
+    ) +
+    get_theme_sci() +
+    ggplot2::theme(legend.position = "bottom")
+
+  p_overall +
+    p_gender +
+    patchwork::plot_layout(ncol = 2, widths = c(1.1, 0.9)) +
+    patchwork::plot_annotation(
+      title = "Figure 3.6 — ZIMPHIA interval censoring patterns",
+      subtitle = "Observed histograms are survey-weighted; dashed lines mark medians for ZIMPHIA (purple) and simulation (green) sources"
+    )
+}
+
+#' Figure 3.7 — Convergence diagnostics via trace plots
+#'
+#' @param zimphia_dir Directory containing ZIMPHIA outputs.
+#'
+#' @return ggplot object
+#' @export
+create_figure3_7_zimphia_convergence_traces <- function(
+  zimphia_dir = "mcmc_outputs/zimphia"
+) {
+  suppressPackageStartupMessages({
+    library(dplyr)
+    library(tidyr)
+    library(ggplot2)
+  })
+
+  hmc_draws <- load_zimphia_draws("hmc", zimphia_dir)
+  mh_draws <- load_zimphia_draws("mh", zimphia_dir)
+
+  prep_draws <- function(df, method_label) {
+    df %>%
+      dplyr::select(.chain, .iteration, alpha, beta) %>%
+      tidyr::pivot_longer(
+        cols = c(alpha, beta),
+        names_to = "parameter_id",
+        values_to = "value"
+      ) %>%
+      dplyr::mutate(
+        method = method_label,
+        parameter = dplyr::recode(
+          parameter_id,
+          alpha = "α (baseline)",
+          beta = "β (gender)"
+        ),
+        parameter_id = dplyr::recode(
+          parameter_id,
+          alpha = "alpha",
+          beta = "beta"
+        )
+      )
+  }
+
+  trace_df <- dplyr::bind_rows(
+    prep_draws(hmc_draws, "HMC"),
+    prep_draws(mh_draws, "MH")
+  ) %>%
+    dplyr::mutate(
+      method = factor(method, levels = c("HMC", "MH")),
+      parameter = factor(parameter, levels = c("α (baseline)", "β (gender)"))
+    )
+
+  thin_every <- 5
+  trace_df <- trace_df %>%
+    dplyr::group_by(method, parameter, .chain) %>%
+    dplyr::arrange(.iteration) %>%
+    dplyr::filter(
+      row_number() %% thin_every == 1 | dplyr::row_number() == dplyr::n()
+    ) %>%
+    dplyr::ungroup()
+
+  summaries <- load_zimphia_summaries(zimphia_dir)
+  param_summary <- dplyr::bind_rows(
+    summaries$hmc %>%
+      dplyr::select(variable, median, rhat, ess_bulk) %>%
+      dplyr::mutate(method = "HMC"),
+    summaries$mh %>%
+      dplyr::select(variable, median, rhat, ess = ess) %>%
+      dplyr::mutate(method = "MH", ess_bulk = ess)
+  ) %>%
+    dplyr::filter(variable %in% c("alpha", "beta")) %>%
+    dplyr::mutate(
+      parameter = dplyr::recode(
+        variable,
+        alpha = "α (baseline)",
+        beta = "β (gender)"
+      ),
+      method = factor(method, levels = c("HMC", "MH")),
+      diag_label = sprintf(
+        "R̂ = %.3f\nESS = %s%s",
+        rhat,
+        scales::comma(round(ess_bulk)),
+        if_else(
+          method == "HMC",
+          "\nDiv = 0",
+          ""
+        )
+      )
+    )
+
+  diag_text <- param_summary %>%
+    dplyr::transmute(
+      method,
+      parameter,
+      x = Inf,
+      y = Inf,
+      label = diag_label
+    )
+
+  p <- ggplot2::ggplot(
+    trace_df,
+    ggplot2::aes(x = .iteration, y = value, colour = factor(.chain))
+  ) +
+    ggplot2::geom_line(alpha = 0.7, linewidth = 0.3) +
+    ggplot2::facet_grid(method ~ parameter, scales = "free_y") +
+    ggplot2::geom_hline(
+      data = param_summary,
+      ggplot2::aes(yintercept = median),
+      colour = "grey40",
+      linetype = "dashed",
+      linewidth = 0.5
+    ) +
+    ggplot2::geom_text(
+      data = diag_text,
+      ggplot2::aes(x = x, y = y, label = label),
+      inherit.aes = FALSE,
+      hjust = 1.02,
+      vjust = 1.3,
+      size = 3,
+      colour = "grey25"
+    ) +
+    ggplot2::labs(
+      x = "Iteration",
+      y = "Parameter value",
+      colour = "Chain",
+      title = "Figure 3.7 — Convergence diagnostics via trace plots",
+      subtitle = "Dashed line = posterior median; annotations show split-R̂, ESS, and HMC divergences"
+    ) +
+    get_theme_sci() +
+    ggplot2::theme(
+      legend.position = "bottom"
+    )
+
+  p
+}
+
+#' Figure 3.8 — Posterior distributions for seroconversion model
+#'
+#' @param zimphia_dir Directory containing ZIMPHIA outputs.
+#'
+#' @return ggplot object
+#' @export
+create_figure3_8_zimphia_posterior_forest <- function(
+  zimphia_dir = "mcmc_outputs/zimphia"
+) {
+  suppressPackageStartupMessages({
+    library(dplyr)
+    library(ggplot2)
+    library(tidyr)
+  })
+
+  zimphia_dat <- load_zimphia_prepared_data(zimphia_dir)
+  observed_n <- nrow(zimphia_dat)
+  observed_censoring <- mean(is.infinite(zimphia_dat$R))
+  observed_weight_cv <- stats::sd(zimphia_dat$weight) / mean(zimphia_dat$weight)
+
+  summaries <- load_zimphia_summaries(zimphia_dir)
+  combined <- dplyr::bind_rows(
+    summaries$hmc %>% dplyr::mutate(method = "HMC"),
+    summaries$mh %>% dplyr::mutate(method = "MH")
+  ) %>%
+    dplyr::filter(variable %in% c("alpha", "beta", "gamma"))
+
+  sim_sample_sizes <- c(200, 2000, 10000)
+  target_n <- sim_sample_sizes[which.min(abs(sim_sample_sizes - observed_n))]
+  censor_levels <- c(0.1, 0.3, 0.5)
+  target_censoring <- censor_levels[which.min(abs(
+    censor_levels - observed_censoring
+  ))]
+  weight_targets <- c(none = 0, low = 1 / sqrt(10), high = 1)
+  target_weight <- names(weight_targets)[which.min(abs(
+    weight_targets - observed_weight_cv
+  ))]
+
+  param_labels <- tibble::tibble(
+    variable = c("alpha", "beta", "gamma"),
+    label = c(
+      "α — Baseline median (years)",
+      "β — Gender effect (female vs male)",
+      "γ — Log-logistic shape"
+    ),
+    facet = c(
+      "Alpha — median years",
+      "Beta — covariate effect",
+      "Gamma — shape parameter"
+    )
+  )
+
+  summary_df <- combined %>%
+    dplyr::select(variable, median, q2.5, q97.5, method) %>%
+    dplyr::left_join(param_labels, by = "variable") %>%
+    dplyr::mutate(
+      method = factor(method, levels = c("HMC", "MH")),
+      facet = factor(facet, levels = param_labels$facet)
+    )
+
+  sim_base <- readRDS("outputs/combined_results/combined_summaries.rds")
+
+  sim_filtered <- sim_base %>%
+    dplyr::filter(
+      variable %in% c("alpha", "beta", "gamma"),
+      n_obs == target_n,
+      dplyr::near(censoring, target_censoring),
+      weight_type == target_weight
+    )
+
+  if (nrow(sim_filtered) == 0) {
+    stop(
+      "No simulation summaries matched the inferred ZIMPHIA scenario (n = ",
+      target_n,
+      ", censoring = ",
+      target_censoring,
+      ", weights = ",
+      target_weight,
+      ")."
+    )
+  }
+
+  sim_summary <- sim_filtered %>%
+    dplyr::group_by(variable) %>%
+    dplyr::summarise(
+      truth = stats::median(true_value, na.rm = TRUE),
+      band_lo = stats::quantile(median, 0.025, na.rm = TRUE),
+      band_hi = stats::quantile(median, 0.975, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    dplyr::left_join(param_labels, by = "variable")
+
+  zero_line_df <- tibble::tibble(
+    facet = factor(
+      param_labels$facet[param_labels$variable == "beta"],
+      levels = param_labels$facet
+    ),
+    x = 0
+  )
+
+  sim_reference_text <- sprintf(
+    "Grey bands/lines: simulation reference n = %s, censoring = %.1f, weights = %s",
+    scales::comma(target_n),
+    target_censoring,
+    target_weight
+  )
+  obs_context_text <- sprintf(
+    "Observed n = %s, censoring = %.2f, weight CV = %.2f",
+    scales::comma(observed_n),
+    observed_censoring,
+    observed_weight_cv
+  )
+
+  p <- ggplot2::ggplot(
+    summary_df,
+    ggplot2::aes(y = method, x = median, colour = method)
+  ) +
+    ggplot2::geom_vline(
+      data = zero_line_df,
+      ggplot2::aes(xintercept = x),
+      colour = "grey85",
+      linetype = "dashed",
+      linewidth = 0.6
+    ) +
+    ggplot2::geom_rect(
+      data = sim_summary,
+      ggplot2::aes(
+        xmin = band_lo,
+        xmax = band_hi,
+        ymin = -Inf,
+        ymax = Inf
+      ),
+      fill = "grey90",
+      alpha = 0.5,
+      inherit.aes = FALSE
+    ) +
+    ggplot2::geom_vline(
+      data = sim_summary,
+      ggplot2::aes(xintercept = truth),
+      colour = "grey40",
+      linetype = "dotted",
+      linewidth = 0.7
+    ) +
+    ggplot2::geom_errorbarh(
+      ggplot2::aes(xmin = q2.5, xmax = q97.5),
+      height = 0.3,
+      position = ggplot2::position_dodge(width = 0.4)
+    ) +
+    ggplot2::geom_point(
+      size = 2.2,
+      position = ggplot2::position_dodge(width = 0.4)
+    ) +
+    ggplot2::facet_wrap(~facet, scales = "free_x", ncol = 1) +
+    ggplot2::scale_colour_manual(values = get_palette()) +
+    ggplot2::labs(
+      x = "Posterior median with 95% CrI",
+      y = "",
+      colour = "Sampler",
+      title = "Figure 3.8 — Posterior distributions for ZIMPHIA seroconversion model",
+      subtitle = paste(sim_reference_text, obs_context_text, sep = " | ")
+    ) +
+    get_theme_sci() +
+    ggplot2::theme(
+      legend.position = "bottom"
+    )
+
+  p
+}

@@ -1118,7 +1118,833 @@ scaling_table <- function(metric = c("runtime", "ess_per_sec"), data) {
       heading.align = "left"
     )
 
-  scaling_tbl %>% as_latex() %>% as.character()
+scaling_tbl %>% as_latex() %>% as.character()
+}
+
+# ZIMPHIA Tables --------------------------------------------------------------
+
+#' Get canonical ZIMPHIA output paths
+#' @keywords internal
+get_zimphia_paths <- function(base_dir = "mcmc_outputs/zimphia") {
+  list(
+    prepared = file.path(base_dir, "zimphia_prepared_data.rds"),
+    method_comparison = file.path(base_dir, "zimphia_method_comparison.csv"),
+    runtime_comparison = file.path(base_dir, "zimphia_runtime_comparison.csv"),
+    hmc_summary = file.path(base_dir, "hmc", "summaries", "zimphia_hmc_summary.csv"),
+    mh_summary = file.path(base_dir, "mh", "summaries", "zimphia_mh_summary.csv"),
+    hmc_diag = file.path(base_dir, "hmc", "diagnostics", "zimphia_hmc_diagnostics.csv"),
+    mh_diag = file.path(base_dir, "mh", "diagnostics", "zimphia_mh_diagnostics.csv"),
+    hmc_draws = file.path(base_dir, "hmc", "draws", "zimphia_hmc_draws.rds"),
+    mh_draws = file.path(base_dir, "mh", "draws", "zimphia_mh_draws.rds"),
+    mh_fit = file.path(base_dir, "mh", "fits", "zimphia_mh_fit.rds")
+  )
+}
+
+#' Load analytic ZIMPHIA dataset
+#' @keywords internal
+load_zimphia_prepared_data <- function(base_dir = "mcmc_outputs/zimphia") {
+  paths <- get_zimphia_paths(base_dir)
+  if (!file.exists(paths$prepared)) {
+    stop("Prepared ZIMPHIA data not found at: ", paths$prepared)
+  }
+  readRDS(paths$prepared)
+}
+
+#' Load ZIMPHIA summary tables
+#' @keywords internal
+load_zimphia_summaries <- function(base_dir = "mcmc_outputs/zimphia") {
+  paths <- get_zimphia_paths(base_dir)
+  for (pth in c(paths$hmc_summary, paths$mh_summary)) {
+    if (!file.exists(pth)) {
+      stop("Summary file not found: ", pth)
+    }
+  }
+  list(
+    hmc = readr::read_csv(paths$hmc_summary, show_col_types = FALSE),
+    mh = readr::read_csv(paths$mh_summary, show_col_types = FALSE)
+  )
+}
+
+#' Load ZIMPHIA diagnostic tables
+#' @keywords internal
+load_zimphia_diagnostics <- function(base_dir = "mcmc_outputs/zimphia") {
+  paths <- get_zimphia_paths(base_dir)
+  for (pth in c(paths$hmc_diag, paths$mh_diag)) {
+    if (!file.exists(pth)) {
+      stop("Diagnostic file not found: ", pth)
+    }
+  }
+  list(
+    hmc = readr::read_csv(paths$hmc_diag, show_col_types = FALSE),
+    mh = readr::read_csv(paths$mh_diag, show_col_types = FALSE)
+  )
+}
+
+#' Load MH fit object for acceptance statistics
+#' @keywords internal
+load_zimphia_mh_fit <- function(base_dir = "mcmc_outputs/zimphia") {
+  paths <- get_zimphia_paths(base_dir)
+  if (!file.exists(paths$mh_fit)) {
+    stop("MH fit object not found: ", paths$mh_fit)
+  }
+  readRDS(paths$mh_fit)
+}
+
+#' Summarise ZIMPHIA missingness flow across inclusion criteria
+#' @keywords internal
+summarise_zimphia_missing_flow <- function(
+    adultbio_file = file.path(
+      "ZIMPHIA",
+      "ZIMPHIA 2020 Datasets (CSV)",
+      "zimphia2020adultbio.csv"
+    ),
+    adultind_file = file.path(
+      "ZIMPHIA",
+      "ZIMPHIA 2020 Datasets (CSV)",
+      "zimphia2020adultind.csv"
+    )) {
+
+  required_files <- c(adultbio_file, adultind_file)
+  missing_files <- required_files[!file.exists(required_files)]
+  if (length(missing_files) > 0) {
+    stop("Missing ZIMPHIA source files: ", paste(missing_files, collapse = ", "))
+  }
+
+  adultbio <- readr::read_csv(
+    adultbio_file,
+    show_col_types = FALSE,
+    col_select = c(
+      personid, hivstatusfinal, btwt0, bt_status, age, gender
+    )
+  )
+
+  adultind <- readr::read_csv(
+    adultind_file,
+    show_col_types = FALSE,
+    col_select = c(personid, firstsxage, sexever, hivtfposy)
+  )
+
+  joined <- adultbio %>%
+    dplyr::left_join(adultind, by = "personid")
+
+  records <- list(
+    tibble::tibble(
+      step = "Merged adultbio + adultind",
+      remaining = nrow(joined),
+      removed = NA_integer_,
+      detail = "Baseline joined sample"
+    )
+  )
+
+  apply_step <- function(data, expr, label, detail_fmt = NULL) {
+    before <- nrow(data)
+    filtered <- dplyr::filter(data, {{ expr }})
+    removed <- before - nrow(filtered)
+    detail <- if (is.null(detail_fmt)) {
+      sprintf("Removed %s participants", scales::comma(removed))
+    } else {
+      detail_fmt(before, removed, filtered)
+    }
+    records <<- append(
+      records,
+      list(
+        tibble::tibble(
+          step = label,
+          remaining = nrow(filtered),
+          removed = removed,
+          detail = detail
+        )
+      )
+    )
+    filtered
+  }
+
+  flow <- joined %>%
+    apply_step(bt_status == 1, "Valid biomarker result") %>%
+    apply_step(age >= 15, "Age ≥ 15 years") %>%
+    apply_step(sexever == 1, "Ever sexually active") %>%
+    apply_step(!is.na(firstsxage), "Non-missing age at debut") %>%
+    apply_step(!is.na(gender), "Recorded gender") %>%
+    apply_step(
+      !(hivstatusfinal == 1 & is.na(hivtfposy)),
+      "HIV+ with documented first positive test",
+      detail_fmt = function(before, removed, filtered) {
+        sprintf(
+          "Removed %s HIV+ lacking first-positive date",
+          scales::comma(removed)
+        )
+      }
+    ) %>%
+    apply_step(!is.na(btwt0) & btwt0 > 0, "Positive survey weight")
+
+  flow_summary <- dplyr::bind_rows(records) %>%
+    dplyr::mutate(
+      pct_remaining = 100 * remaining / remaining[1]
+    )
+
+  list(
+    final_data = flow,
+    flow = flow_summary
+  )
+}
+
+#' Table 3.6 — ZIMPHIA 2020 Analysis Sample Characteristics
+#'
+#' Summarises analytic sample composition, interval structure, weight dispersion,
+#' and missing-data attrition counts for the ZIMPHIA 2020 analysis dataset.
+#'
+#' @param base_dir Path to ZIMPHIA output directory (default
+#'   "mcmc_outputs/zimphia").
+#' @param adultbio_file Path to raw adult biomarker CSV.
+#' @param adultind_file Path to raw adult individual CSV.
+#'
+#' @return Character representation of the gt table in LaTeX format.
+#' @export
+table_3_6_sample_characteristics <- function(
+    base_dir = "mcmc_outputs/zimphia",
+    adultbio_file = file.path(
+      "ZIMPHIA",
+      "ZIMPHIA 2020 Datasets (CSV)",
+      "zimphia2020adultbio.csv"
+    ),
+    adultind_file = file.path(
+      "ZIMPHIA",
+      "ZIMPHIA 2020 Datasets (CSV)",
+      "zimphia2020adultind.csv"
+    )) {
+
+  dat <- load_zimphia_prepared_data(base_dir)
+  flow_info <- summarise_zimphia_missing_flow(adultbio_file, adultind_file)$flow
+
+  n_total <- nrow(dat)
+  hiv_counts <- dat %>%
+    dplyr::mutate(
+      hiv_status = dplyr::case_when(
+        hivstatusfinal == 1 ~ "HIV-positive",
+        hivstatusfinal == 2 ~ "HIV-negative",
+        TRUE ~ "Other"
+      )
+    ) %>%
+    dplyr::count(hiv_status) %>%
+    dplyr::mutate(pct = n / n_total)
+
+  gender_counts <- dat %>%
+    dplyr::mutate(
+      gender_label = dplyr::case_when(
+        X1 == 1 ~ "Female (X1 = 1)",
+        X1 == 0 ~ "Male (X1 = 0)",
+        TRUE ~ "Unknown"
+      )
+    ) %>%
+    dplyr::count(gender_label) %>%
+    dplyr::mutate(pct = n / n_total)
+
+  interval_df <- dat %>%
+    dplyr::mutate(
+      interval_type = dplyr::if_else(
+        is.infinite(R),
+        "Right-censored (HIV−)",
+        "Interval-censored (HIV+)"
+      ),
+      width = dplyr::if_else(is.infinite(R), NA_real_, pmax(R - L, 0))
+    )
+
+  width_stats <- interval_df %>%
+    dplyr::filter(!is.na(width)) %>%
+    dplyr::summarise(
+      median_width = stats::median(width),
+      p25 = stats::quantile(width, 0.25),
+      p75 = stats::quantile(width, 0.75),
+      mean_width = mean(width),
+      .groups = "drop"
+    )
+
+  weight_stats <- dat %>%
+    dplyr::summarise(
+      median = stats::median(weight),
+      p25 = stats::quantile(weight, 0.25),
+      p75 = stats::quantile(weight, 0.75),
+      min_w = min(weight),
+      max_w = max(weight),
+      cv = stats::sd(weight) / mean(weight),
+      kish_ess = (sum(weight) ^ 2) / sum(weight ^ 2),
+      .groups = "drop"
+    )
+
+  format_count <- function(n, pct = NULL, digits = 1) {
+    out <- scales::comma(n)
+    if (!is.null(pct)) {
+      out <- sprintf(
+        "%s (%s)",
+        out,
+        scales::percent(pct, accuracy = digits)
+      )
+    }
+    out
+  }
+
+  section_sample <- tibble::tibble(
+    section = "Sample size and composition",
+    metric = c(
+      "Analytic sample (unweighted)",
+      hiv_counts$hiv_status,
+      gender_counts$gender_label
+    ),
+    estimate = c(
+      scales::comma(n_total),
+      purrr::map2_chr(hiv_counts$n, hiv_counts$pct, format_count),
+      purrr::map2_chr(gender_counts$n, gender_counts$pct, format_count)
+    ),
+    detail = c(
+      "Final dataset after all filters",
+      rep("", length(hiv_counts$hiv_status) + length(gender_counts$gender_label))
+    )
+  )
+
+  section_interval <- tibble::tibble(
+    section = "Interval censoring distribution",
+    metric = c(
+      "Right-censored share (HIV−)",
+      "Median interval width (HIV+)",
+      "IQR of interval width",
+      "Mean lower bound L",
+      "Mean upper bound R (HIV+)"
+    ),
+    estimate = c(
+      scales::percent(
+        mean(is.infinite(dat$R)),
+        accuracy = 0.1
+      ),
+      scales::number(width_stats$median_width, accuracy = 0.1),
+      sprintf(
+        "%s – %s",
+        scales::number(width_stats$p25, accuracy = 0.1),
+        scales::number(width_stats$p75, accuracy = 0.1)
+      ),
+      scales::number(mean(dat$L), accuracy = 0.1),
+      scales::number(
+        mean(dat$R[is.finite(dat$R)]),
+        accuracy = 0.1
+      )
+    ),
+    detail = c(
+      "Proportion with R = ∞ (still HIV− at survey)",
+      "Years between debut and first positive test",
+      "25th–75th percentile of widths",
+      "Average age at sexual debut",
+      "Average age at first HIV+ evidence"
+    )
+  )
+
+  section_weights <- tibble::tibble(
+    section = "Survey weight dispersion",
+    metric = c(
+      "Median weight",
+      "Weight IQR",
+      "Min / Max weight",
+      "Coefficient of variation",
+      "Kish effective sample size"
+    ),
+    estimate = c(
+      scales::number(weight_stats$median, accuracy = 0.01),
+      sprintf(
+        "%s – %s",
+        scales::number(weight_stats$p25, accuracy = 0.01),
+        scales::number(weight_stats$p75, accuracy = 0.01)
+      ),
+      sprintf(
+        "%s / %s",
+        scales::number(weight_stats$min_w, accuracy = 0.001),
+        scales::number(weight_stats$max_w, accuracy = 0.001)
+      ),
+      scales::number(weight_stats$cv, accuracy = 0.01),
+      scales::comma(weight_stats$kish_ess)
+    ),
+    detail = c(
+      "Weights normalised to sum to N",
+      "Inter-quartile range",
+      "Range of respondent weights",
+      "sd(weight) / mean(weight)",
+      " (∑w)^2 / ∑w^2"
+    )
+  )
+
+  section_missing <- flow_info %>%
+    dplyr::filter(!is.na(removed)) %>%
+    dplyr::mutate(
+      section = "Missing-data and quality filters",
+      metric = step,
+      estimate = scales::comma(removed),
+      detail = sprintf(
+        "%s remaining (%.1f%% of merged sample)",
+        scales::comma(remaining),
+        pct_remaining
+      )
+    ) %>%
+    dplyr::select(section, metric, estimate, detail)
+
+  table_df <- dplyr::bind_rows(
+    section_sample,
+    section_interval,
+    section_weights,
+    section_missing
+  )
+
+  tbl <- table_df %>%
+    gt(groupname_col = "section", rowname_col = "metric") %>%
+    cols_label(
+      metric = "",
+      estimate = "Value",
+      detail = "Detail"
+    ) %>%
+    tab_header(
+      title = "Table 3.6 — ZIMPHIA 2020 analysis sample characteristics"
+    ) %>%
+    tab_options(
+      row_group.font.weight = "bold",
+      table.font.size = 11,
+      column_labels.font.weight = "bold"
+    )
+
+  tbl %>% as_latex() %>% as.character()
+}
+
+#' Table 3.7 — Sampler performance on ZIMPHIA data
+#'
+#' Compares runtime, ESS/s, R-hat violations, divergences, and MH acceptance
+#' rate between HMC and MH fits on the ZIMPHIA dataset.
+#'
+#' @param base_dir ZIMPHIA results directory. Default "mcmc_outputs/zimphia".
+#'
+#' @return Character representation of the gt table in LaTeX format.
+#' @export
+table_3_7_sampler_performance <- function(
+    base_dir = "mcmc_outputs/zimphia") {
+
+  summaries <- load_zimphia_summaries(base_dir)
+  diagnostics <- load_zimphia_diagnostics(base_dir)
+
+  hmc_runtime <- diagnostics$hmc$runtime_secs[1]
+  mh_runtime <- diagnostics$mh$runtime_secs[1]
+
+  hmc_alpha <- summaries$hmc %>% dplyr::filter(variable == "alpha")
+  hmc_beta <- summaries$hmc %>% dplyr::filter(variable == "beta")
+  mh_alpha <- summaries$mh %>% dplyr::filter(variable == "alpha")
+  mh_beta <- summaries$mh %>% dplyr::filter(variable == "beta")
+
+  ess_alpha_hmc <- hmc_alpha$ess_bulk[1]
+  ess_beta_hmc <- hmc_beta$ess_bulk[1]
+  ess_alpha_mh <- mh_alpha$ess[1]
+  ess_beta_mh <- mh_beta$ess[1]
+
+  rhat_violations_hmc <- sum(summaries$hmc$rhat > 1.01, na.rm = TRUE)
+  rhat_violations_mh <- sum(summaries$mh$rhat > 1.01, na.rm = TRUE)
+
+  hmc_divergences <- diagnostics$hmc$n_divergences[1]
+
+  if (!requireNamespace("coda", quietly = TRUE)) {
+    stop("Package 'coda' required for MH acceptance diagnostics.")
+  }
+  mh_fit <- load_zimphia_mh_fit(base_dir)
+  rejection <- coda::rejectionRate(mh_fit)
+  mh_acceptance <- 1 - mean(rejection, na.rm = TRUE)
+
+  tbl_df <- tibble::tibble(
+    metric = c(
+      "Runtime (minutes)",
+      "ESS/s (α)",
+      "ESS/s (β)",
+      "Split R̂ > 1.01",
+      "HMC divergences",
+      "MH acceptance rate",
+      "HMC:MH ratio"
+    ),
+    hmc = c(
+      hmc_runtime / 60,
+      ess_alpha_hmc / hmc_runtime,
+      ess_beta_hmc / hmc_runtime,
+      rhat_violations_hmc,
+      hmc_divergences,
+      NA,
+      (hmc_runtime / 60) / (mh_runtime / 60)
+    ),
+    mh = c(
+      mh_runtime / 60,
+      ess_alpha_mh / mh_runtime,
+      ess_beta_mh / mh_runtime,
+      rhat_violations_mh,
+      0,
+      mh_acceptance,
+      NA
+    ),
+    ratio = c(
+      hmc_runtime / mh_runtime,
+      (ess_alpha_hmc / hmc_runtime) / (ess_alpha_mh / mh_runtime),
+      (ess_beta_hmc / hmc_runtime) / (ess_beta_mh / mh_runtime),
+      NA,
+      NA,
+      NA,
+      NA
+    )
+  )
+
+  fmt_cols <- tbl_df %>%
+    gt() %>%
+    fmt_number(
+      columns = c(hmc, mh, ratio),
+      rows = metric %in% c("Runtime (minutes)", "ESS/s (α)", "ESS/s (β)", "HMC:MH ratio"),
+      decimals = 2
+    ) %>%
+    fmt_number(
+      columns = c(hmc, mh),
+      rows = metric == "MH acceptance rate",
+      decimals = 3
+    ) %>%
+    fmt_number(
+      columns = c(hmc, mh),
+      rows = metric == "Split R̂ > 1.01",
+      decimals = 0
+    ) %>%
+    cols_label(
+      hmc = "HMC",
+      mh = "MH",
+      ratio = "HMC ÷ MH"
+    ) %>%
+    tab_header(
+      title = "Table 3.7 — Sampler performance on ZIMPHIA 2020 data"
+    ) %>%
+    tab_options(
+      heading.align = "left",
+      table.font.size = 11
+    )
+
+  fmt_cols %>% as_latex() %>% as.character()
+}
+
+#' Table 3.8 — Parameter estimates from ZIMPHIA application
+#'
+#' Displays posterior medians and 95% CrIs for core parameters with MH and
+#' HMC side-by-side.
+#'
+#' @param base_dir ZIMPHIA results directory. Default "mcmc_outputs/zimphia".
+#'
+#' @return Character representation of the gt table in LaTeX format.
+#' @export
+table_3_8_parameter_estimates <- function(
+    base_dir = "mcmc_outputs/zimphia") {
+
+  summaries <- load_zimphia_summaries(base_dir)
+
+  param_map <- tibble::tibble(
+    variable = c("alpha", "beta", "gamma"),
+    label = c(
+      "Baseline median (α)",
+      "Gender effect (β, female vs male)",
+      "Shape (γ)"
+    ),
+    group = c("Baseline", "Covariate", "Shape"),
+    digits = c(2, 3, 2)
+  )
+
+  fmt_interval <- function(median, lo, hi, digits) {
+    sprintf(
+      "%s (%s, %s)",
+      scales::number(median, accuracy = 10^-digits),
+      scales::number(lo, accuracy = 10^-digits),
+      scales::number(hi, accuracy = 10^-digits)
+    )
+  }
+
+  tidy_summary <- function(df, method_label) {
+    df %>%
+      dplyr::select(variable, median, q2.5, q97.5) %>%
+      dplyr::mutate(method = method_label)
+  }
+
+  combined <- dplyr::bind_rows(
+    tidy_summary(summaries$hmc, "HMC"),
+    tidy_summary(summaries$mh, "MH")
+  )
+
+  table_df <- param_map %>%
+    dplyr::left_join(
+      combined %>% dplyr::filter(method == "HMC") %>%
+        dplyr::rename(
+          hmc_median = median,
+          hmc_lo = q2.5,
+          hmc_hi = q97.5
+        ),
+      by = "variable"
+    ) %>%
+    dplyr::left_join(
+      combined %>% dplyr::filter(method == "MH") %>%
+        dplyr::rename(
+          mh_median = median,
+          mh_lo = q2.5,
+          mh_hi = q97.5
+        ),
+      by = "variable"
+    ) %>%
+    dplyr::mutate(
+      hmc_text = fmt_interval(hmc_median, hmc_lo, hmc_hi, digits),
+      mh_text = fmt_interval(mh_median, mh_lo, mh_hi, digits)
+    )
+
+  tbl <- table_df %>%
+    dplyr::select(label, hmc_text, mh_text, group) %>%
+    gt(groupname_col = "group", rowname_col = "label") %>%
+    cols_label(
+      label = "Parameter",
+      hmc_text = "HMC median (95% CrI)",
+      mh_text = "MH median (95% CrI)"
+    ) %>%
+    tab_header(
+      title = "Table 3.8 — Posterior estimates for ZIMPHIA application"
+    ) %>%
+    tab_options(
+      row_group.font.weight = "bold",
+      heading.align = "left"
+    )
+
+  tbl %>% as_latex() %>% as.character()
+}
+
+#' Table 3.9 — ZIMPHIA vs simulation scalability check
+#'
+#' Compares predicted runtime and ESS/s from simulation scaling laws against the
+#' observed ZIMPHIA fits, including observed/predicted ratios.
+#'
+#' @param base_dir Path to ZIMPHIA results directory.
+#' @param efficiency_file Combined simulation efficiency summary file.
+#' @param target_n Sample size used in ZIMPHIA application. If NULL, inferred
+#'   from prepared data.
+#'
+#' @return Character representation of the gt table in LaTeX format.
+#' @export
+table_3_9_scalability_validation <- function(
+    base_dir = "mcmc_outputs/zimphia",
+    efficiency_file = "outputs/analysis/efficiency_comparisons.csv",
+    target_n = NULL) {
+
+  summaries <- load_zimphia_summaries(base_dir)
+  diagnostics <- load_zimphia_diagnostics(base_dir)
+
+  if (is.null(target_n)) {
+    target_n <- nrow(load_zimphia_prepared_data(base_dir))
+  }
+
+  observed_runtime <- tibble::tibble(
+    method = c("HMC", "MH"),
+    runtime = c(
+      diagnostics$hmc$runtime_secs[1],
+      diagnostics$mh$runtime_secs[1]
+    )
+  )
+
+  observed_ess_per_sec <- tibble::tibble(
+    method = c("HMC", "MH"),
+    ess_per_sec = c(
+      mean(summaries$hmc$ess_bulk, na.rm = TRUE) /
+        diagnostics$hmc$runtime_secs[1],
+      mean(summaries$mh$ess, na.rm = TRUE) /
+        diagnostics$mh$runtime_secs[1]
+    )
+  )
+
+  efficiency <- readr::read_csv(efficiency_file, show_col_types = FALSE)
+
+  runtime_long <- efficiency %>%
+    tidyr::pivot_longer(
+      cols = c(mean_runtime_hmc, mean_runtime_mh),
+      names_to = "method",
+      values_to = "runtime"
+    ) %>%
+    dplyr::mutate(
+      method = stringr::str_to_upper(
+        stringr::str_replace(method, "mean_runtime_", "")
+      )
+    ) %>%
+    dplyr::filter(!is.na(runtime), runtime > 0)
+
+  ess_long <- efficiency %>%
+    tidyr::pivot_longer(
+      cols = c(mean_ess_per_sec_hmc, mean_ess_per_sec_mh),
+      names_to = "method",
+      values_to = "ess_per_sec"
+    ) %>%
+    dplyr::mutate(
+      method = stringr::str_to_upper(
+        stringr::str_replace(method, "mean_ess_per_sec_", "")
+      )
+    ) %>%
+    dplyr::filter(!is.na(ess_per_sec), ess_per_sec > 0)
+
+  predict_scaling <- function(df, value_col) {
+    split <- df %>% dplyr::group_split(method)
+    purrr::map_dfr(split, function(chunk) {
+      if (nrow(chunk) < 2) {
+        return(tibble::tibble(
+          method = unique(chunk$method),
+          predicted = NA_real_
+        ))
+      }
+      fit <- stats::lm(
+        stats::as.formula(paste0("log(", value_col, ") ~ log(n_obs)")),
+        data = chunk
+      )
+      pred <- exp(stats::predict(
+        fit,
+        newdata = data.frame(n_obs = target_n)
+      ))
+      tibble::tibble(method = unique(chunk$method), predicted = pred)
+    })
+  }
+
+  runtime_pred <- runtime_long %>%
+    dplyr::group_by(method, n_obs) %>%
+    dplyr::summarise(
+      runtime = stats::median(runtime, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    predict_scaling("runtime")
+
+  ess_pred <- ess_long %>%
+    dplyr::group_by(method, n_obs) %>%
+    dplyr::summarise(
+      ess_per_sec = stats::median(ess_per_sec, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    predict_scaling("ess_per_sec")
+
+  table_df <- observed_runtime %>%
+    dplyr::left_join(runtime_pred, by = "method", suffix = c("_obs", "_pred")) %>%
+    dplyr::rename(runtime_obs = runtime, runtime_pred = predicted) %>%
+    dplyr::left_join(
+      observed_ess_per_sec %>%
+        dplyr::rename(ess_per_sec_obs = ess_per_sec),
+      by = "method"
+    ) %>%
+    dplyr::left_join(
+      ess_pred %>%
+        dplyr::rename(ess_per_sec_pred = predicted),
+      by = "method"
+    ) %>%
+    dplyr::mutate(
+      runtime_ratio = runtime_obs / runtime_pred,
+      ess_ratio = ess_per_sec_obs / ess_per_sec_pred
+    )
+
+  tidy_rows <- tibble::tibble(
+    metric = c("Runtime (minutes)", "Mean ESS/s"),
+    hmc_pred = c(
+      table_df$runtime_pred[table_df$method == "HMC"] / 60,
+      table_df$ess_per_sec_pred[table_df$method == "HMC"]
+    ),
+    mh_pred = c(
+      table_df$runtime_pred[table_df$method == "MH"] / 60,
+      table_df$ess_per_sec_pred[table_df$method == "MH"]
+    ),
+    hmc_obs = c(
+      table_df$runtime_obs[table_df$method == "HMC"] / 60,
+      table_df$ess_per_sec_obs[table_df$method == "HMC"]
+    ),
+    mh_obs = c(
+      table_df$runtime_obs[table_df$method == "MH"] / 60,
+      table_df$ess_per_sec_obs[table_df$method == "MH"]
+    ),
+    hmc_ratio = c(
+      table_df$runtime_ratio[table_df$method == "HMC"],
+      table_df$ess_ratio[table_df$method == "HMC"]
+    ),
+    mh_ratio = c(
+      table_df$runtime_ratio[table_df$method == "MH"],
+      table_df$ess_ratio[table_df$method == "MH"]
+    ),
+    observed_hmc_mh = c(
+      (table_df$runtime_obs[table_df$method == "HMC"] / 60) /
+        (table_df$runtime_obs[table_df$method == "MH"] / 60),
+      table_df$ess_per_sec_obs[table_df$method == "HMC"] /
+        table_df$ess_per_sec_obs[table_df$method == "MH"]
+    )
+  )
+
+  tbl <- tidy_rows %>%
+    gt() %>%
+    cols_label(
+      metric = "",
+      hmc_pred = "Predicted HMC",
+      mh_pred = "Predicted MH",
+      hmc_obs = "Observed HMC",
+      mh_obs = "Observed MH",
+      hmc_ratio = "Obs/Pred HMC",
+      mh_ratio = "Obs/Pred MH",
+      observed_hmc_mh = "Observed HMC ÷ MH"
+    ) %>%
+    fmt_number(
+      columns = c(hmc_pred, mh_pred, hmc_obs, mh_obs),
+      decimals = 2
+    ) %>%
+    fmt_number(
+      columns = c(hmc_ratio, mh_ratio, observed_hmc_mh),
+      decimals = 2
+    ) %>%
+    tab_header(
+      title = sprintf(
+        "Table 3.9 — ZIMPHIA vs simulation scalability (n = %s)",
+        scales::comma(target_n)
+      )
+    ) %>%
+    tab_options(
+      heading.align = "left",
+      table.font.size = 11
+    )
+
+  tbl %>% as_latex() %>% as.character()
+}
+
+#' Save ZIMPHIA tables to disk
+#'
+#' Convenience wrapper that generates Tables 3.6–3.9 and writes each to
+#' outputs/tables as individual LaTeX fragments.
+#'
+#' @param output_dir Directory where tables should be written.
+#' @param ... Additional arguments passed to individual table functions.
+#'
+#' @return Invisibly returns named vector of output paths.
+#' @export
+save_zimphia_tables <- function(
+    output_dir = "outputs/tables",
+    ...) {
+
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+  }
+
+  files <- c(
+    table3_6 = file.path(output_dir, "table3_6_sample_characteristics.tex"),
+    table3_7 = file.path(output_dir, "table3_7_sampler_performance.tex"),
+    table3_8 = file.path(output_dir, "table3_8_parameter_estimates.tex"),
+    table3_9 = file.path(output_dir, "table3_9_scalability_validation.tex")
+  )
+
+  writeLines(
+    table_3_6_sample_characteristics(...),
+    files["table3_6"]
+  )
+  writeLines(
+    table_3_7_sampler_performance(...),
+    files["table3_7"]
+  )
+  writeLines(
+    table_3_8_parameter_estimates(...),
+    files["table3_8"]
+  )
+  writeLines(
+    table_3_9_scalability_validation(...),
+    files["table3_9"]
+  )
+
+  invisible(files)
 }
 
 #' Save All Tables as LaTeX
