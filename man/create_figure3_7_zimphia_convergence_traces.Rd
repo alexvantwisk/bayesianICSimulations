@@ -2,7 +2,7 @@
 % Please edit documentation in R/figures.R
 \name{create_figure3_7_zimphia_convergence_traces}
 \alias{create_figure3_7_zimphia_convergence_traces}
-\title{Figure 3.7 — Convergence diagnostics via trace plots}
+\title{ZIMPHIA convergence diagnostics via trace plots}
 \usage{
 create_figure3_7_zimphia_convergence_traces(
   zimphia_dir = "mcmc_outputs/zimphia"
@@ -15,5 +15,5 @@ create_figure3_7_zimphia_convergence_traces(
 ggplot object
 }
 \description{
-Figure 3.7 — Convergence diagnostics via trace plots
+ZIMPHIA convergence diagnostics via trace plots
 }

@@ -112,6 +112,7 @@ run_zimphia_analysis <- function(
   missing_suggests <- required_suggests[!vapply(
     required_suggests,
     requireNamespace,
+    FUN.VALUE = logical(1),
     USE.NAMES = FALSE,
     quietly = TRUE
   )]
@@ -463,10 +464,16 @@ run_zimphia_analysis <- function(
 
   jags_model_string <- readLines(jags_model_file)
   set.seed(mh_settings$seed)
+  base_seed <- mh_settings$seed
+  inits_list <- lapply(
+    seq_len(mh_settings$n_chains),
+    function(ch) list(.RNG.name = "base::Wichmann-Hill", .RNG.seed = base_seed + ch)
+  )
   msg("  Initializing JAGS model...\n")
   jags_model <- rjags::jags.model(
     file = textConnection(jags_model_string),
     data = jags_data,
+    inits = inits_list,
     n.chains = mh_settings$n_chains,
     n.adapt = mh_settings$n_adapt,
     quiet = !isTRUE(verbose)
@@ -476,7 +483,7 @@ run_zimphia_analysis <- function(
     "  Running burn-in: %d iterations per chain...\n",
     mh_settings$n_burnin
   ))
-  rjags::update(
+  update(
     jags_model,
     n.iter = mh_settings$n_burnin,
     progress.bar = if (isTRUE(verbose)) "text" else "none"

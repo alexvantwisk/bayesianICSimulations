@@ -2,7 +2,7 @@
 % Please edit documentation in R/figures.R
 \name{create_figure3_6_zimphia_interval_patterns}
 \alias{create_figure3_6_zimphia_interval_patterns}
-\title{Figure 3.6 — Interval censoring patterns for ZIMPHIA vs simulation}
+\title{ZIMPHIA interval censoring patterns vs simulation}
 \usage{
 create_figure3_6_zimphia_interval_patterns(
   zimphia_dir = "mcmc_outputs/zimphia",
@@ -21,5 +21,5 @@ create_figure3_6_zimphia_interval_patterns(
 Patchwork/ggplot object
 }
 \description{
-Figure 3.6 — Interval censoring patterns for ZIMPHIA vs simulation
+ZIMPHIA interval censoring patterns vs simulation
 }

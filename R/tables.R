@@ -1,5 +1,19 @@
-library(tidyverse)
-library(gt)
+#' Convert gt table to LaTeX with standard float positioning
+#'
+#' Ensures every exported table opts into the `!htbp` placement directive so
+#' tables do not float unexpectedly in the manuscript.
+#'
+#' @param tbl A `gt_tbl` object.
+#'
+#' @return Character vector containing the rendered LaTeX fragment.
+#' @keywords internal
+gt_to_latex <- function(tbl) {
+  tbl %>%
+    tab_options(latex.tbl.pos = "!htbp") %>%
+    as_latex() %>%
+    as.character()
+}
+
 #' Mean Runtime Table
 #'
 #' Creates a gt table showing mean runtime by method, sample size, censoring,
@@ -109,7 +123,7 @@ mean_runtime <- function(data) {
     )
 
   # Display the table
-  runtime_table %>% as_latex() %>% as.character()
+  runtime_table %>% gt_to_latex()
 }
 
 #' Mean ESS per Second Table
@@ -226,7 +240,7 @@ mean_ess_per_sec <- function(data) {
     )
 
   # Display the table
-  ess_table %>% as_latex() %>% as.character()
+  ess_table %>% gt_to_latex()
 }
 
 #' Bias Table
@@ -359,7 +373,7 @@ bias_table <- function(parameter = c("alpha", "beta", "gamma"), data) {
       heading.align = "left"
     )
 
-  bias_tbl %>% as_latex() %>% as.character()
+  bias_tbl %>% gt_to_latex()
 }
 
 #' RMSE Table
@@ -492,7 +506,7 @@ rmse_table <- function(parameter = c("alpha", "beta", "gamma"), data) {
       heading.align = "left"
     )
 
-  rmse_tbl %>% as_latex() %>% as.character()
+  rmse_tbl %>% gt_to_latex()
 }
 
 #' MCSE Table
@@ -625,7 +639,7 @@ mcse_table <- function(parameter = c("alpha", "beta", "gamma"), data) {
       heading.align = "left"
     )
 
-  mcse_tbl %>% as_latex() %>% as.character()
+  mcse_tbl %>% gt_to_latex()
 }
 
 #' Standard Deviation Table
@@ -758,7 +772,7 @@ sd_table <- function(parameter = c("alpha", "beta", "gamma"), data) {
       heading.align = "left"
     )
 
-  sd_tbl %>% as_latex() %>% as.character()
+  sd_tbl %>% gt_to_latex()
 }
 
 #' CI Width and Coverage Table
@@ -943,7 +957,7 @@ ci_coverage_table <- function(parameter = c("alpha", "beta", "gamma"), data) {
       heading.align = "left"
     )
 
-  ci_cov_tbl %>% as_latex() %>% as.character()
+  ci_cov_tbl %>% gt_to_latex()
 }
 
 #' Sample Size Scaling Table
@@ -1118,7 +1132,7 @@ scaling_table <- function(metric = c("runtime", "ess_per_sec"), data) {
       heading.align = "left"
     )
 
-scaling_tbl %>% as_latex() %>% as.character()
+  scaling_tbl %>% gt_to_latex()
 }
 
 # ZIMPHIA Tables --------------------------------------------------------------
@@ -1130,10 +1144,30 @@ get_zimphia_paths <- function(base_dir = "mcmc_outputs/zimphia") {
     prepared = file.path(base_dir, "zimphia_prepared_data.rds"),
     method_comparison = file.path(base_dir, "zimphia_method_comparison.csv"),
     runtime_comparison = file.path(base_dir, "zimphia_runtime_comparison.csv"),
-    hmc_summary = file.path(base_dir, "hmc", "summaries", "zimphia_hmc_summary.csv"),
-    mh_summary = file.path(base_dir, "mh", "summaries", "zimphia_mh_summary.csv"),
-    hmc_diag = file.path(base_dir, "hmc", "diagnostics", "zimphia_hmc_diagnostics.csv"),
-    mh_diag = file.path(base_dir, "mh", "diagnostics", "zimphia_mh_diagnostics.csv"),
+    hmc_summary = file.path(
+      base_dir,
+      "hmc",
+      "summaries",
+      "zimphia_hmc_summary.csv"
+    ),
+    mh_summary = file.path(
+      base_dir,
+      "mh",
+      "summaries",
+      "zimphia_mh_summary.csv"
+    ),
+    hmc_diag = file.path(
+      base_dir,
+      "hmc",
+      "diagnostics",
+      "zimphia_hmc_diagnostics.csv"
+    ),
+    mh_diag = file.path(
+      base_dir,
+      "mh",
+      "diagnostics",
+      "zimphia_mh_diagnostics.csv"
+    ),
     hmc_draws = file.path(base_dir, "hmc", "draws", "zimphia_hmc_draws.rds"),
     mh_draws = file.path(base_dir, "mh", "draws", "zimphia_mh_draws.rds"),
     mh_fit = file.path(base_dir, "mh", "fits", "zimphia_mh_fit.rds")
@@ -1193,28 +1227,36 @@ load_zimphia_mh_fit <- function(base_dir = "mcmc_outputs/zimphia") {
 #' Summarise ZIMPHIA missingness flow across inclusion criteria
 #' @keywords internal
 summarise_zimphia_missing_flow <- function(
-    adultbio_file = file.path(
-      "ZIMPHIA",
-      "ZIMPHIA 2020 Datasets (CSV)",
-      "zimphia2020adultbio.csv"
-    ),
-    adultind_file = file.path(
-      "ZIMPHIA",
-      "ZIMPHIA 2020 Datasets (CSV)",
-      "zimphia2020adultind.csv"
-    )) {
-
+  adultbio_file = file.path(
+    "ZIMPHIA",
+    "ZIMPHIA 2020 Datasets (CSV)",
+    "zimphia2020adultbio.csv"
+  ),
+  adultind_file = file.path(
+    "ZIMPHIA",
+    "ZIMPHIA 2020 Datasets (CSV)",
+    "zimphia2020adultind.csv"
+  )
+) {
   required_files <- c(adultbio_file, adultind_file)
   missing_files <- required_files[!file.exists(required_files)]
   if (length(missing_files) > 0) {
-    stop("Missing ZIMPHIA source files: ", paste(missing_files, collapse = ", "))
+    stop(
+      "Missing ZIMPHIA source files: ",
+      paste(missing_files, collapse = ", ")
+    )
   }
 
   adultbio <- readr::read_csv(
     adultbio_file,
     show_col_types = FALSE,
     col_select = c(
-      personid, hivstatusfinal, btwt0, bt_status, age, gender
+      personid,
+      hivstatusfinal,
+      btwt0,
+      bt_status,
+      age,
+      gender
     )
   )
 
@@ -1301,18 +1343,18 @@ summarise_zimphia_missing_flow <- function(
 #' @return Character representation of the gt table in LaTeX format.
 #' @export
 table_3_6_sample_characteristics <- function(
-    base_dir = "mcmc_outputs/zimphia",
-    adultbio_file = file.path(
-      "ZIMPHIA",
-      "ZIMPHIA 2020 Datasets (CSV)",
-      "zimphia2020adultbio.csv"
-    ),
-    adultind_file = file.path(
-      "ZIMPHIA",
-      "ZIMPHIA 2020 Datasets (CSV)",
-      "zimphia2020adultind.csv"
-    )) {
-
+  base_dir = "mcmc_outputs/zimphia",
+  adultbio_file = file.path(
+    "ZIMPHIA",
+    "ZIMPHIA 2020 Datasets (CSV)",
+    "zimphia2020adultbio.csv"
+  ),
+  adultind_file = file.path(
+    "ZIMPHIA",
+    "ZIMPHIA 2020 Datasets (CSV)",
+    "zimphia2020adultind.csv"
+  )
+) {
   dat <- load_zimphia_prepared_data(base_dir)
   flow_info <- summarise_zimphia_missing_flow(adultbio_file, adultind_file)$flow
 
@@ -1367,7 +1409,7 @@ table_3_6_sample_characteristics <- function(
       min_w = min(weight),
       max_w = max(weight),
       cv = stats::sd(weight) / mean(weight),
-      kish_ess = (sum(weight) ^ 2) / sum(weight ^ 2),
+      kish_ess = (sum(weight)^2) / sum(weight^2),
       .groups = "drop"
     )
 
@@ -1397,7 +1439,10 @@ table_3_6_sample_characteristics <- function(
     ),
     detail = c(
       "Final dataset after all filters",
-      rep("", length(hiv_counts$hiv_status) + length(gender_counts$gender_label))
+      rep(
+        "",
+        length(hiv_counts$hiv_status) + length(gender_counts$gender_label)
+      )
     )
   )
 
@@ -1498,15 +1543,14 @@ table_3_6_sample_characteristics <- function(
       detail = "Detail"
     ) %>%
     tab_header(
-      title = "Table 3.6 — ZIMPHIA 2020 analysis sample characteristics"
+      title = "ZIMPHIA 2020 analysis sample characteristics"
     ) %>%
     tab_options(
       row_group.font.weight = "bold",
-      table.font.size = 11,
       column_labels.font.weight = "bold"
     )
 
-  tbl %>% as_latex() %>% as.character()
+  tbl %>% gt_to_latex()
 }
 
 #' Table 3.7 — Sampler performance on ZIMPHIA data
@@ -1519,8 +1563,8 @@ table_3_6_sample_characteristics <- function(
 #' @return Character representation of the gt table in LaTeX format.
 #' @export
 table_3_7_sampler_performance <- function(
-    base_dir = "mcmc_outputs/zimphia") {
-
+  base_dir = "mcmc_outputs/zimphia"
+) {
   summaries <- load_zimphia_summaries(base_dir)
   diagnostics <- load_zimphia_diagnostics(base_dir)
 
@@ -1592,7 +1636,8 @@ table_3_7_sampler_performance <- function(
     gt() %>%
     fmt_number(
       columns = c(hmc, mh, ratio),
-      rows = metric %in% c("Runtime (minutes)", "ESS/s (α)", "ESS/s (β)", "HMC:MH ratio"),
+      rows = metric %in%
+        c("Runtime (minutes)", "ESS/s (α)", "ESS/s (β)", "HMC:MH ratio"),
       decimals = 2
     ) %>%
     fmt_number(
@@ -1611,14 +1656,13 @@ table_3_7_sampler_performance <- function(
       ratio = "HMC ÷ MH"
     ) %>%
     tab_header(
-      title = "Table 3.7 — Sampler performance on ZIMPHIA 2020 data"
+      title = "Sampler performance on ZIMPHIA 2020 data"
     ) %>%
     tab_options(
-      heading.align = "left",
-      table.font.size = 11
+      heading.align = "left"
     )
 
-  fmt_cols %>% as_latex() %>% as.character()
+  fmt_cols %>% gt_to_latex()
 }
 
 #' Table 3.8 — Parameter estimates from ZIMPHIA application
@@ -1631,8 +1675,8 @@ table_3_7_sampler_performance <- function(
 #' @return Character representation of the gt table in LaTeX format.
 #' @export
 table_3_8_parameter_estimates <- function(
-    base_dir = "mcmc_outputs/zimphia") {
-
+  base_dir = "mcmc_outputs/zimphia"
+) {
   summaries <- load_zimphia_summaries(base_dir)
 
   param_map <- tibble::tibble(
@@ -1668,7 +1712,8 @@ table_3_8_parameter_estimates <- function(
 
   table_df <- param_map %>%
     dplyr::left_join(
-      combined %>% dplyr::filter(method == "HMC") %>%
+      combined %>%
+        dplyr::filter(method == "HMC") %>%
         dplyr::rename(
           hmc_median = median,
           hmc_lo = q2.5,
@@ -1677,7 +1722,8 @@ table_3_8_parameter_estimates <- function(
       by = "variable"
     ) %>%
     dplyr::left_join(
-      combined %>% dplyr::filter(method == "MH") %>%
+      combined %>%
+        dplyr::filter(method == "MH") %>%
         dplyr::rename(
           mh_median = median,
           mh_lo = q2.5,
@@ -1699,14 +1745,14 @@ table_3_8_parameter_estimates <- function(
       mh_text = "MH median (95% CrI)"
     ) %>%
     tab_header(
-      title = "Table 3.8 — Posterior estimates for ZIMPHIA application"
+      title = "Posterior estimates for ZIMPHIA application"
     ) %>%
     tab_options(
       row_group.font.weight = "bold",
       heading.align = "left"
     )
 
-  tbl %>% as_latex() %>% as.character()
+  tbl %>% gt_to_latex()
 }
 
 #' Table 3.9 — ZIMPHIA vs simulation scalability check
@@ -1722,10 +1768,10 @@ table_3_8_parameter_estimates <- function(
 #' @return Character representation of the gt table in LaTeX format.
 #' @export
 table_3_9_scalability_validation <- function(
-    base_dir = "mcmc_outputs/zimphia",
-    efficiency_file = "outputs/analysis/efficiency_comparisons.csv",
-    target_n = NULL) {
-
+  base_dir = "mcmc_outputs/zimphia",
+  efficiency_file = "outputs/analysis/efficiency_comparisons.csv",
+  target_n = NULL
+) {
   summaries <- load_zimphia_summaries(base_dir)
   diagnostics <- load_zimphia_diagnostics(base_dir)
 
@@ -1817,7 +1863,11 @@ table_3_9_scalability_validation <- function(
     predict_scaling("ess_per_sec")
 
   table_df <- observed_runtime %>%
-    dplyr::left_join(runtime_pred, by = "method", suffix = c("_obs", "_pred")) %>%
+    dplyr::left_join(
+      runtime_pred,
+      by = "method",
+      suffix = c("_obs", "_pred")
+    ) %>%
     dplyr::rename(runtime_obs = runtime, runtime_pred = predicted) %>%
     dplyr::left_join(
       observed_ess_per_sec %>%
@@ -1890,16 +1940,15 @@ table_3_9_scalability_validation <- function(
     ) %>%
     tab_header(
       title = sprintf(
-        "Table 3.9 — ZIMPHIA vs simulation scalability (n = %s)",
+        "ZIMPHIA vs simulation scalability (n = %s)",
         scales::comma(target_n)
       )
     ) %>%
     tab_options(
-      heading.align = "left",
-      table.font.size = 11
+      heading.align = "left"
     )
 
-  tbl %>% as_latex() %>% as.character()
+  tbl %>% gt_to_latex()
 }
 
 #' Save ZIMPHIA tables to disk
@@ -1913,9 +1962,9 @@ table_3_9_scalability_validation <- function(
 #' @return Invisibly returns named vector of output paths.
 #' @export
 save_zimphia_tables <- function(
-    output_dir = "outputs/tables",
-    ...) {
-
+  output_dir = "outputs/tables",
+  ...
+) {
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
   }
@@ -1949,8 +1998,9 @@ save_zimphia_tables <- function(
 
 #' Save All Tables as LaTeX
 #'
-#' Generates all table functions and saves their LaTeX output to a text file.
-#' Tables are separated by blank lines in the output file.
+#' Generates all simulation and ZIMPHIA table functions and saves their
+#' LaTeX output to a text file. Tables are separated by blank lines in the
+#' output file.
 #'
 #' @param data Optional data frame. If not provided, loads from
 #'   outputs/combined_results/combined_summaries.rds
@@ -1967,7 +2017,10 @@ save_zimphia_tables <- function(
 #' # Use custom data and output location
 #' save_all_tables_latex(my_data, "custom/path/tables.txt")
 #' }
-save_all_tables_latex <- function(data, output_file = "outputs/tables/latex_tables.txt") {
+save_all_tables_latex <- function(
+  data,
+  output_file = "outputs/tables/latex_tables.txt"
+) {
   # Load data if not provided
   if (missing(data)) {
     df <- readRDS("outputs/combined_results/combined_summaries.rds")
@@ -2026,6 +2079,13 @@ save_all_tables_latex <- function(data, output_file = "outputs/tables/latex_tabl
   latex_outputs[["scaling_runtime"]] <- scaling_table("runtime", df)
   latex_outputs[["scaling_ess_per_sec"]] <- scaling_table("ess_per_sec", df)
 
+  # Append ZIMPHIA application tables
+  message("Generating ZIMPHIA tables...")
+  latex_outputs[["zimphia_table_3_6"]] <- table_3_6_sample_characteristics()
+  latex_outputs[["zimphia_table_3_7"]] <- table_3_7_sampler_performance()
+  latex_outputs[["zimphia_table_3_8"]] <- table_3_8_parameter_estimates()
+  latex_outputs[["zimphia_table_3_9"]] <- table_3_9_scalability_validation()
+
   # Combine all outputs with blank lines between tables
   combined_latex <- paste(latex_outputs, collapse = "\n\n")
 
@@ -2039,7 +2099,12 @@ save_all_tables_latex <- function(data, output_file = "outputs/tables/latex_tabl
   # Write to file
   writeLines(combined_latex, output_file)
 
-  message("Successfully saved ", length(latex_outputs), " tables to: ", output_file)
+  message(
+    "Successfully saved ",
+    length(latex_outputs),
+    " tables to: ",
+    output_file
+  )
 
   return(invisible(output_file))
 }

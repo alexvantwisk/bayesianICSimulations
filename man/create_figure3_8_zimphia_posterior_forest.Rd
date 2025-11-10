@@ -2,7 +2,7 @@
 % Please edit documentation in R/figures.R
 \name{create_figure3_8_zimphia_posterior_forest}
 \alias{create_figure3_8_zimphia_posterior_forest}
-\title{Figure 3.8 — Posterior distributions for seroconversion model}
+\title{ZIMPHIA posterior distributions for seroconversion model}
 \usage{
 create_figure3_8_zimphia_posterior_forest(zimphia_dir = "mcmc_outputs/zimphia")
 }
@@ -13,5 +13,5 @@ create_figure3_8_zimphia_posterior_forest(zimphia_dir = "mcmc_outputs/zimphia")
 ggplot object
 }
 \description{
-Figure 3.8 — Posterior distributions for seroconversion model
+ZIMPHIA posterior distributions for seroconversion model
 }

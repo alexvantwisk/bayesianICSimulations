@@ -2341,7 +2341,7 @@ if (!exists("load_zimphia_summaries")) {
   }
 }
 
-#' Save ZIMPHIA-specific figures (Figures 3.6–3.8)
+#' Save ZIMPHIA-specific figures
 #'
 #' @param output_dir Directory where figures should be written.
 #' @param zimphia_dir Directory containing ZIMPHIA outputs.
@@ -2369,7 +2369,7 @@ save_zimphia_figures <- function(
 
   plots <- list()
 
-  message("Creating Figure 3.6 — ZIMPHIA interval censoring patterns...")
+  message("Creating ZIMPHIA interval censoring patterns...")
   plots$fig3_6 <- create_figure3_6_zimphia_interval_patterns(
     zimphia_dir = zimphia_dir,
     sim_root = sim_root,
@@ -2384,7 +2384,7 @@ save_zimphia_figures <- function(
     formats = formats
   )
 
-  message("Creating Figure 3.7 — Convergence diagnostics comparison...")
+  message("Creating ZIMPHIA convergence diagnostics comparison...")
   plots$fig3_7 <- create_figure3_7_zimphia_convergence_traces(
     zimphia_dir = zimphia_dir
   )
@@ -2398,7 +2398,7 @@ save_zimphia_figures <- function(
   )
 
   message(
-    "Creating Figure 3.8 — Posterior distributions for seroconversion model..."
+    "Creating ZIMPHIA posterior distributions for seroconversion model..."
   )
   plots$fig3_8 <- create_figure3_8_zimphia_posterior_forest(
     zimphia_dir = zimphia_dir
@@ -2504,7 +2504,7 @@ collect_sim_interval_widths <- function(
   dplyr::bind_rows(width_list)
 }
 
-#' Figure 3.6 — Interval censoring patterns for ZIMPHIA vs simulation
+#' ZIMPHIA interval censoring patterns vs simulation
 #'
 #' @param zimphia_dir Directory containing prepared ZIMPHIA data.
 #' @param sim_root Root directory containing simulation datasets.
@@ -2580,6 +2580,11 @@ create_figure3_6_zimphia_interval_patterns <- function(
 
   palette_sources <- c(ZIMPHIA = "#7D3C98", Simulation = "#1B9E77")
 
+  # Compute sample sizes for panel annotation
+  n_overall <- combined_overall %>%
+    dplyr::group_by(source) %>%
+    dplyr::summarise(n = dplyr::n(), .groups = "drop")
+
   p_overall <- ggplot2::ggplot(
     combined_overall,
     ggplot2::aes(
@@ -2602,15 +2607,23 @@ create_figure3_6_zimphia_interval_patterns <- function(
       linewidth = 0.7
     ) +
     ggplot2::scale_fill_manual(values = palette_sources, name = "Data source") +
-    ggplot2::scale_colour_manual(values = palette_sources, guide = "none") +
+    ggplot2::scale_colour_manual(values = palette_sources) +
+    ggplot2::guides(colour = "none", fill = ggplot2::guide_legend(override.aes = list(alpha = 0.7))) +
+    ggplot2::scale_y_log10(
+      labels = scales::comma,
+      breaks = scales::breaks_log(n = 6),
+      limits = c(0.5, NA),
+      oob = scales::squish
+    ) +
     ggplot2::coord_cartesian(xlim = c(0, xmax)) +
     ggplot2::labs(
       title = "Panel A — Interval width distribution",
       x = "Interval width (years)",
-      y = "Weighted count",
+      y = "Weighted count (log scale)",
       subtitle = paste(interval_stats$summary, collapse = " | ")
     ) +
-    get_theme_sci()
+    get_theme_sci() +
+    ggplot2::theme(legend.position = "none")
 
   gender_df <- dplyr::bind_rows(
     zimphia_df %>% dplyr::select(width, gender, source, plot_weight),
@@ -2662,18 +2675,22 @@ create_figure3_6_zimphia_interval_patterns <- function(
       y = "Weighted density"
     ) +
     get_theme_sci() +
+    ggplot2::theme(legend.position = "none")
+
+  # Combine with patchwork and center legend at bottom
+  combined <- p_overall +
+    p_gender +
+    patchwork::plot_layout(ncol = 2, widths = c(1.1, 0.9), guides = "collect") +
+    patchwork::plot_annotation(
+      title = "ZIMPHIA interval censoring patterns",
+      subtitle = "Observed histograms are survey-weighted; dashed lines mark medians for ZIMPHIA (purple) and simulation (green) sources"
+    ) &
     ggplot2::theme(legend.position = "bottom")
 
-  p_overall +
-    p_gender +
-    patchwork::plot_layout(ncol = 2, widths = c(1.1, 0.9)) +
-    patchwork::plot_annotation(
-      title = "Figure 3.6 — ZIMPHIA interval censoring patterns",
-      subtitle = "Observed histograms are survey-weighted; dashed lines mark medians for ZIMPHIA (purple) and simulation (green) sources"
-    )
+  return(combined)
 }
 
-#' Figure 3.7 — Convergence diagnostics via trace plots
+#' ZIMPHIA convergence diagnostics via trace plots
 #'
 #' @param zimphia_dir Directory containing ZIMPHIA outputs.
 #'
@@ -2686,53 +2703,15 @@ create_figure3_7_zimphia_convergence_traces <- function(
     library(dplyr)
     library(tidyr)
     library(ggplot2)
+    library(patchwork)
   })
 
+  # Load draws and summaries
   hmc_draws <- load_zimphia_draws("hmc", zimphia_dir)
   mh_draws <- load_zimphia_draws("mh", zimphia_dir)
-
-  prep_draws <- function(df, method_label) {
-    df %>%
-      dplyr::select(.chain, .iteration, alpha, beta) %>%
-      tidyr::pivot_longer(
-        cols = c(alpha, beta),
-        names_to = "parameter_id",
-        values_to = "value"
-      ) %>%
-      dplyr::mutate(
-        method = method_label,
-        parameter = dplyr::recode(
-          parameter_id,
-          alpha = "α (baseline)",
-          beta = "β (gender)"
-        ),
-        parameter_id = dplyr::recode(
-          parameter_id,
-          alpha = "alpha",
-          beta = "beta"
-        )
-      )
-  }
-
-  trace_df <- dplyr::bind_rows(
-    prep_draws(hmc_draws, "HMC"),
-    prep_draws(mh_draws, "MH")
-  ) %>%
-    dplyr::mutate(
-      method = factor(method, levels = c("HMC", "MH")),
-      parameter = factor(parameter, levels = c("α (baseline)", "β (gender)"))
-    )
-
-  thin_every <- 5
-  trace_df <- trace_df %>%
-    dplyr::group_by(method, parameter, .chain) %>%
-    dplyr::arrange(.iteration) %>%
-    dplyr::filter(
-      row_number() %% thin_every == 1 | dplyr::row_number() == dplyr::n()
-    ) %>%
-    dplyr::ungroup()
-
   summaries <- load_zimphia_summaries(zimphia_dir)
+
+  # Prepare summary stats for both methods
   param_summary <- dplyr::bind_rows(
     summaries$hmc %>%
       dplyr::select(variable, median, rhat, ess_bulk) %>%
@@ -2741,73 +2720,115 @@ create_figure3_7_zimphia_convergence_traces <- function(
       dplyr::select(variable, median, rhat, ess = ess) %>%
       dplyr::mutate(method = "MH", ess_bulk = ess)
   ) %>%
-    dplyr::filter(variable %in% c("alpha", "beta")) %>%
-    dplyr::mutate(
-      parameter = dplyr::recode(
-        variable,
-        alpha = "α (baseline)",
-        beta = "β (gender)"
-      ),
-      method = factor(method, levels = c("HMC", "MH")),
-      diag_label = sprintf(
-        "R̂ = %.3f\nESS = %s%s",
-        rhat,
-        scales::comma(round(ess_bulk)),
-        if_else(
-          method == "HMC",
-          "\nDiv = 0",
-          ""
-        )
+    dplyr::filter(variable %in% c("alpha", "beta"))
+
+  # Helper function to create individual trace plot
+  make_trace_plot <- function(draws_df, method_name, param_name, param_label,
+                               show_y_label = TRUE, show_x_label = TRUE) {
+    # Thin draws for plotting
+    thin_every <- 5
+    plot_df <- draws_df %>%
+      dplyr::select(.chain, .iteration, !!rlang::sym(param_name)) %>%
+      dplyr::rename(value = !!rlang::sym(param_name)) %>%
+      dplyr::group_by(.chain) %>%
+      dplyr::arrange(.iteration) %>%
+      dplyr::filter(
+        row_number() %% thin_every == 1 | row_number() == dplyr::n()
+      ) %>%
+      dplyr::ungroup()
+
+    # Get diagnostics for this method/parameter
+    diag_info <- param_summary %>%
+      dplyr::filter(variable == param_name, method == method_name)
+
+    median_val <- diag_info$median
+    rhat_val <- diag_info$rhat
+    ess_val <- diag_info$ess_bulk
+
+    # Create diagnostic label using R-hat notation
+    diag_label <- sprintf(
+      "Rhat = %.3f\nESS = %s%s",
+      rhat_val,
+      scales::comma(round(ess_val)),
+      if (method_name == "HMC") "\nDiv = 0" else ""
+    )
+
+    # Build plot
+    p <- ggplot2::ggplot(
+      plot_df,
+      ggplot2::aes(x = .iteration, y = value, colour = factor(.chain))
+    ) +
+      ggplot2::geom_line(alpha = 0.7, linewidth = 0.3) +
+      ggplot2::geom_hline(
+        yintercept = median_val,
+        colour = "grey40",
+        linetype = "dashed",
+        linewidth = 0.5
+      ) +
+      ggplot2::annotate(
+        "text",
+        x = Inf,
+        y = Inf,
+        label = diag_label,
+        hjust = 1.02,
+        vjust = 1.3,
+        size = 3,
+        colour = "grey25"
+      ) +
+      ggplot2::labs(
+        title = paste(method_name, "—", param_label),
+        x = if (show_x_label) "Iteration" else NULL,
+        y = if (show_y_label) "Parameter value" else NULL,
+        colour = "Chain"
+      ) +
+      get_theme_sci() +
+      ggplot2::theme(
+        legend.position = "none",
+        plot.title = ggplot2::element_text(size = 11, face = "bold")
       )
-    )
 
-  diag_text <- param_summary %>%
-    dplyr::transmute(
-      method,
-      parameter,
-      x = Inf,
-      y = Inf,
-      label = diag_label
-    )
+    return(p)
+  }
 
-  p <- ggplot2::ggplot(
-    trace_df,
-    ggplot2::aes(x = .iteration, y = value, colour = factor(.chain))
-  ) +
-    ggplot2::geom_line(alpha = 0.7, linewidth = 0.3) +
-    ggplot2::facet_grid(method ~ parameter, scales = "free_y") +
-    ggplot2::geom_hline(
-      data = param_summary,
-      ggplot2::aes(yintercept = median),
-      colour = "grey40",
-      linetype = "dashed",
-      linewidth = 0.5
-    ) +
-    ggplot2::geom_text(
-      data = diag_text,
-      ggplot2::aes(x = x, y = y, label = label),
-      inherit.aes = FALSE,
-      hjust = 1.02,
-      vjust = 1.3,
-      size = 3,
-      colour = "grey25"
-    ) +
-    ggplot2::labs(
-      x = "Iteration",
-      y = "Parameter value",
-      colour = "Chain",
-      title = "Figure 3.7 — Convergence diagnostics via trace plots",
-      subtitle = "Dashed line = posterior median; annotations show split-R̂, ESS, and HMC divergences"
-    ) +
-    get_theme_sci() +
-    ggplot2::theme(
-      legend.position = "bottom"
-    )
+  # Create 4 individual plots
+  p_hmc_alpha <- make_trace_plot(
+    hmc_draws, "HMC", "alpha", "α (baseline)",
+    show_y_label = TRUE, show_x_label = FALSE
+  )
 
-  p
+  p_hmc_beta <- make_trace_plot(
+    hmc_draws, "HMC", "beta", "β (gender)",
+    show_y_label = FALSE, show_x_label = FALSE
+  )
+
+  p_mh_alpha <- make_trace_plot(
+    mh_draws, "MH", "alpha", "α (baseline)",
+    show_y_label = TRUE, show_x_label = TRUE
+  )
+
+  p_mh_beta <- make_trace_plot(
+    mh_draws, "MH", "beta", "β (gender)",
+    show_y_label = FALSE, show_x_label = TRUE
+  )
+
+  # Combine with patchwork
+  combined <- (p_hmc_alpha | p_hmc_beta) /
+              (p_mh_alpha | p_mh_beta) +
+    patchwork::plot_layout(guides = "collect") +
+    patchwork::plot_annotation(
+      title = "ZIMPHIA convergence diagnostics via trace plots",
+      subtitle = "Dashed horizontal line = posterior median; annotations show split-Rhat, bulk ESS, and HMC divergences",
+      theme = ggplot2::theme(
+        plot.title = ggplot2::element_text(size = 14, face = "bold"),
+        plot.subtitle = ggplot2::element_text(size = 11)
+      )
+    ) &
+    ggplot2::theme(legend.position = "bottom")
+
+  return(combined)
 }
 
-#' Figure 3.8 — Posterior distributions for seroconversion model
+#' ZIMPHIA posterior distributions for seroconversion model
 #'
 #' @param zimphia_dir Directory containing ZIMPHIA outputs.
 #'
@@ -2889,6 +2910,42 @@ create_figure3_8_zimphia_posterior_forest <- function(
     )
   }
 
+  # Programmatic guard: verify simulation scenario matches ZIMPHIA characteristics
+  sim_setup_check <- list(
+    n = target_n,
+    censoring = target_censoring,
+    weight_type = target_weight
+  )
+  zimphia_setup_check <- list(
+    n = observed_n,
+    censoring = observed_censoring,
+    weight_cv = observed_weight_cv
+  )
+
+  # Warn if the match is not close
+  n_diff_pct <- abs(observed_n - target_n) / observed_n * 100
+  censor_diff <- abs(observed_censoring - target_censoring)
+
+  if (n_diff_pct > 10) {
+    warning(
+      "Sample size mismatch: ZIMPHIA n = ",
+      observed_n,
+      ", simulation n = ",
+      target_n,
+      " (", round(n_diff_pct, 1), "% difference)"
+    )
+  }
+
+  if (censor_diff > 0.1) {
+    warning(
+      "Censoring rate mismatch: ZIMPHIA = ",
+      round(observed_censoring, 3),
+      ", simulation = ",
+      target_censoring,
+      " (difference = ", round(censor_diff, 3), ")"
+    )
+  }
+
   sim_summary <- sim_filtered %>%
     dplyr::group_by(variable) %>%
     dplyr::summarise(
@@ -2908,16 +2965,22 @@ create_figure3_8_zimphia_posterior_forest <- function(
   )
 
   sim_reference_text <- sprintf(
-    "Grey bands/lines: simulation reference n = %s, censoring = %.1f, weights = %s",
+    "Simulation reference: n = %s, censoring = %.1f, weights = %s",
     scales::comma(target_n),
     target_censoring,
     target_weight
   )
   obs_context_text <- sprintf(
-    "Observed n = %s, censoring = %.2f, weight CV = %.2f",
+    "ZIMPHIA observed: n = %s, censoring = %.2f, weight CV = %.2f",
     scales::comma(observed_n),
     observed_censoring,
     observed_weight_cv
+  )
+
+  subtitle_text <- paste(
+    "Grey bands show simulation 95% range; dotted line = simulation truth",
+    sprintf("%s | %s", sim_reference_text, obs_context_text),
+    sep = "\n"
   )
 
   p <- ggplot2::ggplot(
@@ -2965,12 +3028,13 @@ create_figure3_8_zimphia_posterior_forest <- function(
       x = "Posterior median with 95% CrI",
       y = "",
       colour = "Sampler",
-      title = "Figure 3.8 — Posterior distributions for ZIMPHIA seroconversion model",
-      subtitle = paste(sim_reference_text, obs_context_text, sep = " | ")
+      title = "Posterior distributions for ZIMPHIA seroconversion model",
+      subtitle = subtitle_text
     ) +
     get_theme_sci() +
     ggplot2::theme(
-      legend.position = "bottom"
+      legend.position = "bottom",
+      plot.subtitle = ggplot2::element_text(size = 10)
     )
 
   p

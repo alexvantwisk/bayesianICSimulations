@@ -1,76 +1,125 @@
-I'll systematically work through your three tasks to identify the required ZIMPHIA variables for your real-world analysis.
+# ZIMPHIA Application Summary
 
-## First Task: Understanding the Simulation Study Structure
+## 1. Data Preparation
 
-Let me examine your dissertation draft to understand the simulated data structure:Based on my thorough review of your dissertation draft and the ZIMPHIA documentation, I'll provide you with the required analysis.
+-   Input files and locations
+    -   `ZIMPHIA/ZIMPHIA 2020 Datasets (CSV)/zimphia2020adultbio.csv` (CSV) read with selected columns `personid, hivstatusfinal, btwt0, bt_status, age, gender` (R/zimphia_analysis.R:127)
+    -   `ZIMPHIA/ZIMPHIA 2020 Datasets (CSV)/zimphia2020adultind.csv` (CSV) read with selected columns `personid, firstsxage, sexever, hivtfposy, gender` (R/zimphia_analysis.R:128)
+    -   Merge on `personid` via left join (R/zimphia_analysis.R:161)
+-   Variable mapping to simulation equivalents
+    -   Interval bounds: `L = firstsxage` (floored by `lower_bound_floor`, default 1e-10) (R/zimphia_analysis.R:233)
+    -   Right bound: `R = age` if HIV-positive (`hivstatusfinal == 1`); `R = Inf` if HIV-negative (`hivstatusfinal == 2`) (R/zimphia_analysis.R:233)
+    -   Non-positive widths: if finite `R <= L`, set `R = L + interval_min_width` (default 1e-6) (R/zimphia_analysis.R:258)
+    -   Covariate: `X1` recode of gender — male (`gender == 1`) → 0; female (`gender == 2`) → 1 (R/zimphia_analysis.R:277)
+    -   Model inputs: Stan/JAGS receive `N, L, R, X = X1, w = weight` (R/zimphia_analysis.R:318)
+-   Handling of missing data, exclusions, recoding
+    -   Keep `bt_status == 1` (valid biomarker) (R/zimphia_analysis.R:171)
+    -   Keep `age >= 15` (R/zimphia_analysis.R:177)
+    -   Keep `sexever == 1` (R/zimphia_analysis.R:183)
+    -   Drop missing `firstsxage` (R/zimphia_analysis.R:189)
+    -   Drop missing `gender` (R/zimphia_analysis.R:195)
+    -   Exclude HIV+ with missing first positive test date `hivtfposy` (R/zimphia_analysis.R:202)
+    -   Keep positive survey weight `btwt0 > 0` and non-missing (R/zimphia_analysis.R:214)
+    -   Gender recode to `X1` as above (R/zimphia_analysis.R:277)
+-   Weighting and normalization
+    -   Normalization rule: `weight = btwt0 * N / sum(btwt0)` so that `sum(weight) = N` (R/zimphia_analysis.R:298)
+    -   Both Stan and JAGS re-normalize internally (`wN = w * N / sum(w)`) before applying weighted likelihood (inst/models/loglogistic_interval.stan:14; inst/models/loglogistic_interval.jags:28)
+-   Survey design features (PSU, strata)
+    -   ⚠️ Information not found in repository. No PSU/strata variables are used in the application scripts.
 
-## 1. Summary of How ZIMPHIA Data Aligns with Your Simulated Data Structure
+## 2. Model Implementation
 
-Your simulation study models interval-censored HIV seroconversion times using a **log-logistic AFT model** with the following key components:
+-   Model family and files
+    -   Log-logistic AFT model with interval censoring, common parameterization across Stan/JAGS using `alpha` (scale), `beta` (covariate effect), `gamma` (shape) (inst/models/loglogistic_interval.stan:1; inst/models/loglogistic_interval.jags:1)
+    -   Stan: `inst/models/loglogistic_interval.stan` with weighted log-likelihood and `wN` normalization (inst/models/loglogistic_interval.stan:14)
+    -   JAGS: `inst/models/loglogistic_interval.jags` using zeros-trick and `wN` weights with `R > 1e10` as right-censor placeholder (inst/models/loglogistic_interval.jags:1)
+-   Priors
+    -   `alpha ~ lognormal(log(5), 1)`; `beta ~ normal(0, 1)`; `gamma ~ lognormal(0, 0.5)` (inst/models/loglogistic_interval.stan:32; inst/models/loglogistic_interval.jags:40)
+-   Sampler configuration
+    -   HMC (CmdStanR): `chains=4`, `warmup=1000`, `sampling=5000`, `parallel_chains=4`, `seed=2025`, `refresh=500` (R/zimphia_analysis.R:98)
+    -   MH (JAGS): `chains=4`, `adapt=1000`, `burnin=1000`, `iter=5000`, `seed=2025` (R/zimphia_analysis.R:113)
+    -   Right-censoring in JAGS: finite placeholder `1e11` passed for `Inf` (R/zimphia_analysis.R:452)
+-   Software and versions
+    -   R 4.5.1; GCC 9.4.0; JAGS 4.3.2; CmdStan installed via cmdstanr on HPC (inst/hpc/setup_hpc.sh:15,149,334,268)
+    -   Exact CmdStan version: ⚠️ Information not found in repository.
+    -   R packages used in application: `cmdstanr`, `rjags`, `posterior`, `coda`, plus `dplyr`, `readr`, `tibble` for preparation (R/zimphia_analysis.R:111,145)
 
-**Simulated Data Structure:** - **Event times**: Generated from log-logistic AFT with baseline median α = 5.0 years - **Interval construction**: Based on sexual debut age (Beta(2,5) on \[15,35\]) and survey age - **Covariates**: Single binary sex covariate (55% female) - **Survey weights**: Three dispersion levels (none, low CV≈0.316, high CV≈1) - **Censoring**: 10%, 30%, or 50% right-censoring among HIV+ individuals
+## 3. Analysis Protocol
 
-**ZIMPHIA Alignment:** The ZIMPHIA 2020 data aligns well with your simulation structure: - Cross-sectional HIV survey with biomarker testing - Contains sexual debut age (`firstsxage`) - Has HIV testing history for interval construction - Complex survey design with household-based weights - Binary sex/gender variable available - Natural interval censoring from retrospective HIV status determination
+-   Subsetting logic
+    -   Analytic subset after sequential filters: valid biomarker, age ≥ 15, sexually active, non-missing debut age, recorded gender, HIV+ must have documented first-positive date, and positive weight (R/zimphia_analysis.R:171)
+-   Interval construction
+    -   `L = firstsxage` floored at small positive value; `R = age` for HIV+, `R = Inf` for HIV−; ensure positive width (`R > L`) or set `R = L + interval_min_width` (R/zimphia_analysis.R:233,258)
+-   Diagnostics thresholds (gates)
+    -   Split-R̂ \< 1.01, bulk ESS \> 400, zero HMC divergences — stated and used for interpretation; diagnostics recorded in CSV/RDS outputs (R/zimphia_analysis.R:38; R/zimphia_analysis.R:379)
+-   Weight trimming or sensitivity analyses
+    -   ⚠️ Information not found in repository. No trimming/sensitivity scripts detected.
+-   Random seeds and reproducibility
+    -   Seeds set via defaults: HMC `seed = 2025`; MH `seed = 2025` (R/zimphia_analysis.R:98,113)
+    -   Prepared analysis dataset and all outputs persisted under `mcmc_outputs/zimphia` for reproducibility (R/zimphia_analysis.R:208)
 
-## 2. Variables Required from ZIMPHIA Data
+## 4. Tables and Figures
 
-### **Primary Outcome Construction Variables**
+-   Tables generated (saved under `outputs/tables/`)
+    -   Table 3.6: ZIMPHIA 2020 analysis sample characteristics
+        -   Function: `table_3_6_sample_characteristics()` (R/tables.R:1603)
+        -   File: `outputs/tables/table3_6_sample_characteristics.tex`
+        -   Columns: sectioned rows with “Value” and “Detail”; includes composition, interval structure, weight dispersion, and missingness flow.
+        -   Underlying data: `mcmc_outputs/zimphia/zimphia_prepared_data.rds`; missing-data flow constructed from raw CSVs (R/tables.R:1464)
+    -   Table 3.7: Sampler performance on ZIMPHIA 2020 data
+        -   Function: `table_3_7_sampler_performance()` (R/tables.R:1565)
+        -   File: `outputs/tables/table3_7_sampler_performance.tex`
+        -   Columns: `metric`, `HMC`, `MH`, `HMC ÷ MH`; metrics include runtime (minutes), ESS/s (α, β), split-R̂ \> 1.01, divergences, MH acceptance rate.
+        -   Inputs: summaries and diagnostics from `mcmc_outputs/zimphia/...` (R/tables.R:1569)
+    -   Table 3.8: Posterior estimates for ZIMPHIA application
+        -   Function: `table_3_8_parameter_estimates()` (R/tables.R:1677)
+        -   File: `outputs/tables/table3_8_parameter_estimates.tex`
+        -   Columns: `HMC median (95% CrI)`, `MH median (95% CrI)` for α (baseline median), β (gender effect), γ (shape).
+    -   Table 3.9: ZIMPHIA vs simulation scalability (n ≈ 16,554)
+        -   Function: `table_3_9_scalability_validation()` (R/tables.R:1770)
+        -   File: `outputs/tables/table3_9_scalability_validation.tex`
+        -   Columns: Predicted vs Observed (runtime, ESS/s) for HMC and MH, plus Obs/Pred ratios and HMC ÷ MH.
+        -   Simulation inputs: `outputs/analysis/efficiency_comparisons.csv` (outputs/analysis/efficiency_comparisons.csv:1)
+-   Figures produced for thesis (saved under `outputs/figures/` via `save_zimphia_figures()`)
+    -   Figure 3.6: `fig3_6_zimphia_interval_patterns.png`
+        -   Function: `create_figure3_6_zimphia_interval_patterns()` (R/figures.R:2515)
+        -   Visualizes: Interval width distributions (R−L) overall and by gender; ZIMPHIA (weighted hist/density) vs sampled simulation replicates; dashed medians; y-axis log scale for counts (R/figures.R:2552)
+        -   Inputs: `mcmc_outputs/zimphia/zimphia_prepared_data.rds`; simulation widths collected from `data/` (R/figures.R:2527)
+    -   Figure 3.7: `fig3_7_zimphia_convergence.png`
+        -   Function: `create_figure3_7_zimphia_convergence_traces()` (R/figures.R:2699)
+        -   Visualizes: Trace plots for α and β by sampler and chain with overlays of posterior medians; annotations include split-R̂, bulk ESS, and HMC divergences (R/figures.R:2886)
+        -   Inputs: Draws `mcmc_outputs/zimphia/hmc/draws/zimphia_hmc_draws.rds`, `mcmc_outputs/zimphia/mh/draws/zimphia_mh_draws.rds`; summaries CSVs (R/figures.R:2710)
+    -   Figure 3.8: `fig3_8_zimphia_posterior_forest.png`
+        -   Function: `create_figure3_8_zimphia_posterior_forest()` (R/figures.R:2837)
+        -   Visualizes: Posterior medians and 95% CrIs for α, β, γ side-by-side by sampler; overlays simulation “truth” (dotted) and 95% bands for the nearest simulation scenario in n, censoring, and weight CV (R/figures.R:3031)
+        -   Inputs: ZIMPHIA summaries; simulation `outputs/combined_results/combined_summaries.rds` (R/figures.R:2889)
+-   Table/figure crosswalk
+    -   Table 3.7 complements Figure 3.7 (sampler performance vs trace behavior).
+    -   Table 3.8 aligns with Figure 3.8 (posterior summaries vs visual intervals).
+    -   Table 3.6 stands alone (sample characteristics informing Figure 3.6 context).
 
-1.  **HIV status determination**:
-    -   Current HIV test result from biomarker data
-    -   Self-reported HIV status and testing history
-2.  **Interval boundary variables**:
-    -   Lower bound: Sexual debut age or first potential exposure
-    -   Upper bound: Current age at survey or last negative test
+## 5. Comparison with Simulation
 
-### **Covariate Variables**
+-   Runtime and efficiency scaling
+    -   Table 3.9 fits log–log scaling `log(metric) ~ log(n_obs)` per method from simulation and predicts for ZIMPHIA sample size; compares observed vs predicted (R/tables.R:1811)
+    -   Simulation source file for scaling: `outputs/analysis/efficiency_comparisons.csv` (outputs/analysis/efficiency_comparisons.csv:1)
+-   Posterior comparison
+    -   Figure 3.8 selects the closest simulation scenario in n, censoring rate, and weight CV to provide a reference band and truth overlay (R/figures.R:2851)
+    -   Programmatic guards warn on mismatch tolerances for n and censoring (R/figures.R:2913)
 
-1.  **Sex/gender** (primary covariate in simulation)
-2.  Additional demographic variables for extended analysis
+## 6. Reproducibility Metadata
 
-### **Survey Weight Variables**
-
-1.  Individual-level weights for proper inference
-2.  Design variables for variance estimation
-
-## 3. Final Table of Requirements
-
-| **Variable Category** | **ZIMPHIA Variable Name** | **Description** | **Dataset Source** | **Purpose in Analysis** |
-|---------------|---------------|---------------|---------------|---------------|
-| **HIV Status** | `bthiv` | Final HIV test result from biomarker | adultbio | Determine HIV+ individuals for interval construction |
-|  | `hivtstrslt` | Self-reported result of last HIV test | adultind | Validate/supplement biomarker status |
-|  | `hivtfposy`, `hivtfposm` | Date of first positive HIV test | adultind | Upper bound for HIV+ with known first positive |
-| **Interval Bounds** | `firstsxage` | Age at first sex (sexual debut) | adultind | Lower bound of interval (L_i) |
-|  | `age` | Current age at survey | adultind/adultbio | Calculate time since debut for upper bound |
-|  | `hivlastnegy`, `hivlastnegm` | Date of last negative HIV test | adultind | Alternative lower bound for interval |
-| **Primary Covariate** | `gender` | Sex/gender (1=Male, 2=Female) | adultind/adultbio | Main covariate matching simulation |
-| **Survey Weights** | `btwt0` | Blood test final weight - full sample | adultbio | Primary analysis weight |
-|  | `btwt001-btwt175` | Blood test replicate weights | adultbio | Variance estimation (175 replicates) |
-|  | `varstrat` | Variance stratum | adultind/adultbio | Taylor series variance estimation |
-|  | `varunit` | Variance unit within stratum | adultind/adultbio | Complex survey design |
-| **Additional Covariates** | `province` | Geographic province | adultind/adultbio | Potential stratification variable |
-|  | `agemar` | Age at first marriage | adultind | Alternative exposure marker |
-|  | `lifetimesex` | Number of lifetime sexual partners | adultind | Risk factor covariate |
-|  | `hivtstever` | Ever tested for HIV | adultind | Testing history indicator |
-| **Data Quality** | `bt_status` | Biomarker disposition code | adultbio | Filter for valid blood tests |
-|  | `sexever` | Ever had sexual intercourse | adultind | Inclusion criteria |
-
-### **Key Implementation Notes:**
-
-1.  **Interval Construction Logic**:
-    -   For HIV+ individuals: L_i = `firstsxage`, R_i = current age - `firstsxage`
-    -   For HIV- individuals: R_i = ∞ (right-censored)
-    -   Alternative: Use `hivlastnegy` as refined lower bound when available
-2.  **Weight Normalization**:
-    -   ZIMPHIA weights (`btwt0`) should be normalized to sum to n as in your simulation
-    -   Replicate weights available for proper variance estimation
-3.  **Data Filtering Requirements**:
-    -   Include only adults 15+ with valid biomarker results (`bt_status` = 1)
-    -   Require non-missing `firstsxage` for interval construction
-    -   Consider `sexever` = 1 to ensure sexual exposure
-4.  **ZIMPHIA Survey Design Features**:
-    -   Two-stage cluster sampling (EAs then households)
-    -   Post-stratification to 2020 population estimates
-    -   Complex weight adjustments for non-response at multiple levels
-
-This mapping provides a direct bridge from your validated simulation framework to real ZIMPHIA data, maintaining the methodological rigor while accounting for the additional complexity of real survey data.
+-   Prepared data and outputs (ZIMPHIA application)
+    -   Prepared dataset: `mcmc_outputs/zimphia/zimphia_prepared_data.rds` (R/zimphia_analysis.R:208)
+    -   Summaries: `mcmc_outputs/zimphia/hmc/summaries/zimphia_hmc_summary.csv`, `mcmc_outputs/zimphia/mh/summaries/zimphia_mh_summary.csv` (R/zimphia_analysis.R:361)
+    -   Diagnostics: `mcmc_outputs/zimphia/hmc/diagnostics/zimphia_hmc_diagnostics.csv`, `mcmc_outputs/zimphia/mh/diagnostics/zimphia_mh_diagnostics.csv` (R/zimphia_analysis.R:388)
+    -   Draws: `mcmc_outputs/zimphia/hmc/draws/zimphia_hmc_draws.rds`, `mcmc_outputs/zimphia/mh/draws/zimphia_mh_draws.rds` (R/zimphia_analysis.R:347)
+    -   Fits: `mcmc_outputs/zimphia/hmc/fits/zimphia_hmc_fit.rds`, `mcmc_outputs/zimphia/mh/fits/zimphia_mh_fit.rds` (R/zimphia_analysis.R:354)
+-   Seeds
+    -   HMC `seed = 2025`, MH `seed = 2025` (R/zimphia_analysis.R:98,113)
+-   Software/versions
+    -   R 4.5.1; GCC 9.4.0; JAGS 4.3.2; CmdStan via cmdstanr (exact version not recorded) (inst/hpc/setup_hpc.sh:15,149,334,268)
+-   Session info
+    -   ⚠️ Information not found in repository.
+-   Git commit
+    -   Current HEAD: `db98ab9f63de57cb040991f68a7563b577410bbb`

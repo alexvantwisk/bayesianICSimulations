@@ -2,7 +2,7 @@
 % Please edit documentation in R/figures.R
 \name{save_zimphia_figures}
 \alias{save_zimphia_figures}
-\title{Save ZIMPHIA-specific figures (Figures 3.6–3.8)}
+\title{Save ZIMPHIA-specific figures}
 \usage{
 save_zimphia_figures(
   output_dir = "outputs/figures",
@@ -34,5 +34,5 @@ save_zimphia_figures(
 Invisibly returns list of ggplot objects.
 }
 \description{
-Save ZIMPHIA-specific figures (Figures 3.6–3.8)
+Save ZIMPHIA-specific figures
 }

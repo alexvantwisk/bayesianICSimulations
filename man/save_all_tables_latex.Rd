@@ -17,8 +17,9 @@ outputs/combined_results/combined_summaries.rds}
 Character string with path to the saved file
 }
 \description{
-Generates all table functions and saves their LaTeX output to a text file.
-Tables are separated by blank lines in the output file.
+Generates all simulation and ZIMPHIA table functions and saves their
+LaTeX output to a text file. Tables are separated by blank lines in the
+output file.
 }
 \examples{
 \dontrun{
