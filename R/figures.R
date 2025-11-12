@@ -2608,7 +2608,10 @@ create_figure3_6_zimphia_interval_patterns <- function(
     ) +
     ggplot2::scale_fill_manual(values = palette_sources, name = "Data source") +
     ggplot2::scale_colour_manual(values = palette_sources) +
-    ggplot2::guides(colour = "none", fill = ggplot2::guide_legend(override.aes = list(alpha = 0.7))) +
+    ggplot2::guides(
+      colour = "none",
+      fill = ggplot2::guide_legend(override.aes = list(alpha = 0.7))
+    ) +
     ggplot2::scale_y_log10(
       labels = scales::comma,
       breaks = scales::breaks_log(n = 6),
@@ -2619,8 +2622,7 @@ create_figure3_6_zimphia_interval_patterns <- function(
     ggplot2::labs(
       title = "Panel A — Interval width distribution",
       x = "Interval width (years)",
-      y = "Weighted count (log scale)",
-      subtitle = paste(interval_stats$summary, collapse = " | ")
+      y = "Weighted count (log scale)"
     ) +
     get_theme_sci() +
     ggplot2::theme(legend.position = "none")
@@ -2723,8 +2725,14 @@ create_figure3_7_zimphia_convergence_traces <- function(
     dplyr::filter(variable %in% c("alpha", "beta"))
 
   # Helper function to create individual trace plot
-  make_trace_plot <- function(draws_df, method_name, param_name, param_label,
-                               show_y_label = TRUE, show_x_label = TRUE) {
+  make_trace_plot <- function(
+    draws_df,
+    method_name,
+    param_name,
+    param_label,
+    show_y_label = TRUE,
+    show_x_label = TRUE
+  ) {
     # Thin draws for plotting
     thin_every <- 5
     plot_df <- draws_df %>%
@@ -2792,28 +2800,44 @@ create_figure3_7_zimphia_convergence_traces <- function(
 
   # Create 4 individual plots
   p_hmc_alpha <- make_trace_plot(
-    hmc_draws, "HMC", "alpha", "α (baseline)",
-    show_y_label = TRUE, show_x_label = FALSE
+    hmc_draws,
+    "HMC",
+    "alpha",
+    "α (baseline)",
+    show_y_label = TRUE,
+    show_x_label = FALSE
   )
 
   p_hmc_beta <- make_trace_plot(
-    hmc_draws, "HMC", "beta", "β (gender)",
-    show_y_label = FALSE, show_x_label = FALSE
+    hmc_draws,
+    "HMC",
+    "beta",
+    "β (gender)",
+    show_y_label = FALSE,
+    show_x_label = FALSE
   )
 
   p_mh_alpha <- make_trace_plot(
-    mh_draws, "MH", "alpha", "α (baseline)",
-    show_y_label = TRUE, show_x_label = TRUE
+    mh_draws,
+    "MH",
+    "alpha",
+    "α (baseline)",
+    show_y_label = TRUE,
+    show_x_label = TRUE
   )
 
   p_mh_beta <- make_trace_plot(
-    mh_draws, "MH", "beta", "β (gender)",
-    show_y_label = FALSE, show_x_label = TRUE
+    mh_draws,
+    "MH",
+    "beta",
+    "β (gender)",
+    show_y_label = FALSE,
+    show_x_label = TRUE
   )
 
   # Combine with patchwork
   combined <- (p_hmc_alpha | p_hmc_beta) /
-              (p_mh_alpha | p_mh_beta) +
+    (p_mh_alpha | p_mh_beta) +
     patchwork::plot_layout(guides = "collect") +
     patchwork::plot_annotation(
       title = "ZIMPHIA convergence diagnostics via trace plots",
@@ -2932,7 +2956,9 @@ create_figure3_8_zimphia_posterior_forest <- function(
       observed_n,
       ", simulation n = ",
       target_n,
-      " (", round(n_diff_pct, 1), "% difference)"
+      " (",
+      round(n_diff_pct, 1),
+      "% difference)"
     )
   }
 
@@ -2942,7 +2968,9 @@ create_figure3_8_zimphia_posterior_forest <- function(
       round(observed_censoring, 3),
       ", simulation = ",
       target_censoring,
-      " (difference = ", round(censor_diff, 3), ")"
+      " (difference = ",
+      round(censor_diff, 3),
+      ")"
     )
   }
 
