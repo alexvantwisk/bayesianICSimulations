@@ -2341,6 +2341,38 @@ if (!exists("load_zimphia_summaries")) {
   }
 }
 
+if (!exists("load_zimphia_method_comparison")) {
+  load_zimphia_method_comparison <- function(
+    base_dir = "mcmc_outputs/zimphia"
+  ) {
+    paths <- get_zimphia_paths(base_dir)
+    if (!file.exists(paths$method_comparison)) {
+      stop(
+        "ZIMPHIA method comparison not found at: ",
+        paths$method_comparison
+      )
+    }
+    readr::read_csv(paths$method_comparison, show_col_types = FALSE) %>%
+      dplyr::mutate(method = toupper(method))
+  }
+}
+
+if (!exists("load_zimphia_runtime_comparison")) {
+  load_zimphia_runtime_comparison <- function(
+    base_dir = "mcmc_outputs/zimphia"
+  ) {
+    paths <- get_zimphia_paths(base_dir)
+    if (!file.exists(paths$runtime_comparison)) {
+      stop(
+        "ZIMPHIA runtime comparison not found at: ",
+        paths$runtime_comparison
+      )
+    }
+    readr::read_csv(paths$runtime_comparison, show_col_types = FALSE) %>%
+      dplyr::mutate(method = toupper(method))
+  }
+}
+
 #' Save ZIMPHIA-specific figures
 #'
 #' @param output_dir Directory where figures should be written.
@@ -2408,6 +2440,45 @@ save_zimphia_figures <- function(
     file.path(output_dir, "fig3_8_zimphia_posterior_forest"),
     width = width,
     height = height,
+    dpi = dpi,
+    formats = formats
+  )
+
+  message("Creating ZIMPHIA beta overlap comparison...")
+  plots$fig3_9 <- create_figure3_9_zimphia_beta_comparison(
+    zimphia_dir = zimphia_dir
+  )
+  save_figure(
+    plots$fig3_9,
+    file.path(output_dir, "fig3_9_zimphia_beta_overlap"),
+    width = 8,
+    height = 5,
+    dpi = dpi,
+    formats = formats
+  )
+
+  message("Creating ZIMPHIA ESS per second bars...")
+  plots$fig3_10 <- create_figure3_10_zimphia_ess_per_sec(
+    zimphia_dir = zimphia_dir
+  )
+  save_figure(
+    plots$fig3_10,
+    file.path(output_dir, "fig3_10_zimphia_ess_per_sec"),
+    width = 8,
+    height = 4.5,
+    dpi = dpi,
+    formats = formats
+  )
+
+  message("Creating ZIMPHIA runtime comparison bars...")
+  plots$fig3_11 <- create_figure3_11_zimphia_runtime_bars(
+    zimphia_dir = zimphia_dir
+  )
+  save_figure(
+    plots$fig3_11,
+    file.path(output_dir, "fig3_11_zimphia_runtime_bars"),
+    width = 7,
+    height = 4.5,
     dpi = dpi,
     formats = formats
   )
@@ -3066,4 +3137,197 @@ create_figure3_8_zimphia_posterior_forest <- function(
     )
 
   p
+}
+
+#' ZIMPHIA beta posterior overlap
+#'
+#' @param zimphia_dir Directory containing ZIMPHIA outputs.
+#'
+#' @return ggplot object
+#' @export
+create_figure3_9_zimphia_beta_comparison <- function(
+  zimphia_dir = "mcmc_outputs/zimphia"
+) {
+  suppressPackageStartupMessages({
+    library(dplyr)
+    library(ggplot2)
+    library(scales)
+  })
+
+  draws <- dplyr::bind_rows(
+    load_zimphia_draws("hmc", zimphia_dir) %>%
+      dplyr::transmute(beta, method = "HMC"),
+    load_zimphia_draws("mh", zimphia_dir) %>%
+      dplyr::transmute(beta, method = "MH")
+  ) %>%
+    dplyr::filter(is.finite(beta)) %>%
+    dplyr::mutate(method = factor(method, levels = c("HMC", "MH")))
+
+  if (nrow(draws) == 0) {
+    stop("No beta draws found for ZIMPHIA plotting.")
+  }
+
+  density_peaks <- draws %>%
+    dplyr::group_by(method) %>%
+    dplyr::summarise(
+      peak = max(stats::density(beta)$y),
+      .groups = "drop"
+    )
+
+  beta_summary <- draws %>%
+    dplyr::group_by(method) %>%
+    dplyr::summarise(
+      median = stats::median(beta),
+      lo = stats::quantile(beta, 0.025),
+      hi = stats::quantile(beta, 0.975),
+      .groups = "drop"
+    ) %>%
+    dplyr::left_join(density_peaks, by = "method") %>%
+    dplyr::mutate(
+      y = max(peak) * (1.05 + 0.08 * (as.numeric(method) - 1))
+    )
+
+  ggplot2::ggplot(
+    draws,
+    ggplot2::aes(x = beta, fill = method, colour = method)
+  ) +
+    ggplot2::geom_density(alpha = 0.18, adjust = 1.1, linewidth = 0.8) +
+    ggplot2::geom_segment(
+      data = beta_summary,
+      ggplot2::aes(x = lo, xend = hi, y = y, yend = y, colour = method),
+      linewidth = 0.9
+    ) +
+    ggplot2::geom_point(
+      data = beta_summary,
+      ggplot2::aes(x = median, y = y, colour = method),
+      size = 2.6,
+      fill = "white"
+    ) +
+    ggplot2::scale_fill_manual(values = get_palette()) +
+    ggplot2::scale_colour_manual(values = get_palette()) +
+    ggplot2::labs(
+      x = expression(beta[1] * " (gender effect)"),
+      y = "Posterior density",
+      fill = "Sampler",
+      colour = "Sampler",
+      title = "Posterior overlap for ZIMPHIA \u03B2",
+      subtitle = "Shaded areas are full posteriors; line segments mark 95% CrI with points at medians"
+    ) +
+    get_theme_sci() +
+    ggplot2::theme(legend.position = "bottom") +
+    ggplot2::expand_limits(y = max(beta_summary$y) * 1.1)
+}
+
+#' ZIMPHIA ESS per second by sampler
+#'
+#' @param zimphia_dir Directory containing ZIMPHIA outputs.
+#'
+#' @return ggplot object
+#' @export
+create_figure3_10_zimphia_ess_per_sec <- function(
+  zimphia_dir = "mcmc_outputs/zimphia"
+) {
+  suppressPackageStartupMessages({
+    library(dplyr)
+    library(ggplot2)
+    library(scales)
+    library(tidyr)
+  })
+
+  method_df <- load_zimphia_method_comparison(zimphia_dir) %>%
+    dplyr::filter(variable %in% c("alpha", "beta", "gamma")) %>%
+    dplyr::mutate(
+      parameter = dplyr::recode(
+        variable,
+        alpha = "\u03B1 (baseline)",
+        beta = "\u03B2 (gender)",
+        gamma = "\u03B3 (shape)"
+      ),
+      method = factor(method, levels = c("HMC", "MH"))
+    )
+
+  runtime_df <- load_zimphia_runtime_comparison(zimphia_dir) %>%
+    dplyr::transmute(
+      method = factor(method, levels = c("HMC", "MH")),
+      runtime_secs
+    )
+
+  ess_df <- method_df %>%
+    dplyr::left_join(runtime_df, by = "method") %>%
+    dplyr::mutate(ess_per_sec = ess / runtime_secs) %>%
+    tidyr::drop_na(ess_per_sec)
+
+  ggplot2::ggplot(
+    ess_df,
+    ggplot2::aes(x = method, y = ess_per_sec, fill = method)
+  ) +
+    ggplot2::geom_col(width = 0.55, alpha = 0.9, colour = "grey40") +
+    ggplot2::geom_text(
+      ggplot2::aes(label = scales::comma(round(ess_per_sec, 1))),
+      vjust = -0.25,
+      size = 3.2
+    ) +
+    ggplot2::facet_wrap(~parameter, scales = "free_y") +
+    ggplot2::scale_fill_manual(values = get_palette()) +
+    ggplot2::scale_y_continuous(
+      labels = scales::comma_format(accuracy = 1),
+      expand = ggplot2::expansion(mult = c(0, 0.2))
+    ) +
+    ggplot2::labs(
+      x = "Sampler",
+      y = "ESS per second",
+      fill = "Sampler",
+      title = "Efficiency (ESS per second) for ZIMPHIA seroconversion model"
+    ) +
+    get_theme_sci() +
+    ggplot2::theme(legend.position = "none")
+}
+
+#' ZIMPHIA runtime comparison
+#'
+#' @param zimphia_dir Directory containing ZIMPHIA outputs.
+#'
+#' @return ggplot object
+#' @export
+create_figure3_11_zimphia_runtime_bars <- function(
+  zimphia_dir = "mcmc_outputs/zimphia"
+) {
+  suppressPackageStartupMessages({
+    library(dplyr)
+    library(ggplot2)
+    library(scales)
+  })
+
+  runtime_df <- load_zimphia_runtime_comparison(zimphia_dir) %>%
+    dplyr::transmute(
+      method = factor(method, levels = c("HMC", "MH")),
+      runtime_mins = runtime_mins,
+      runtime_secs = runtime_secs,
+      label = sprintf("%.1f min", runtime_mins)
+    )
+
+  ggplot2::ggplot(
+    runtime_df,
+    ggplot2::aes(x = method, y = runtime_mins, fill = method)
+  ) +
+    ggplot2::geom_col(width = 0.55, alpha = 0.9, colour = "grey40") +
+    ggplot2::geom_text(
+      ggplot2::aes(label = label),
+      vjust = -0.15,
+      size = 3.4
+    ) +
+    ggplot2::scale_fill_manual(values = get_palette()) +
+    ggplot2::scale_y_continuous(
+      labels = scales::number_format(accuracy = 0.1),
+      expand = ggplot2::expansion(mult = c(0, 0.15))
+    ) +
+    ggplot2::labs(
+      x = "Sampler",
+      y = "Runtime (minutes)",
+      fill = "Sampler",
+      title = "Runtime for ZIMPHIA seroconversion model",
+      subtitle = "Wall-clock runtime summed across chains"
+    ) +
+    get_theme_sci() +
+    ggplot2::theme(legend.position = "none")
 }
