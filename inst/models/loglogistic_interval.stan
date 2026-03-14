@@ -1,6 +1,5 @@
 // loglogistic_interval_aft_standard.stan
 // Interval-censored Log-Logistic AFT model with standard parameterization
-// Updated to follow standard AFT conventions without negative sign confusion
 data {
   int<lower=1>       N;          // number of observations
   vector<lower=0>[N] L;          // left interval bounds
