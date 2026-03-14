@@ -1,8 +1,7 @@
 Package: bayesianICSimulations
 Title: Bayesian Interval-Censored Survival Data Simulation and Analysis
 Version: 0.1.0
-Authors@R:
-    person("Alexander", "van Twisk", email = "your.email@domain.com", role = c("aut", "cre"))
+Authors@R: person("Alexander", "van Twisk", email = "alexander.vantwisk@gmail.com", role = c("aut", "cre"))
 Description: Tools for simulating interval-censored survival data and comparing
     Bayesian inference methods (HMC via Stan, Metropolis-Hastings via JAGS) for
     log-logistic AFT models. Designed for MSc research on MCMC comparison with

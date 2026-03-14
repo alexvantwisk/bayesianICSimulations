@@ -19,11 +19,15 @@ compiled_models/**    # Compiled Stan models (platform-specific)
 compiled_models/
 ZIMPHIA/**
 
-# Documentation drafts (optional)
+# Documentation drafts and development notes
 /ADEMP_Audit.md
 /AGENTS.md
 /CLAUDE.md
 /MSc_Protocol_Final.pdf
+/STELLENBOSCH_HPC_GUIDE.md
+/ZIMPHIA_APPLICATION.md
+/PACKAGE_SUMMARY.md
+/HPC.code-workspace
 
 # Temporary files
 /download_wlow.sh
