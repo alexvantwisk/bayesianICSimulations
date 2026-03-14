@@ -1,34 +1,29 @@
 # bayesianICSimulations
 
-**Bayesian Interval-Censored Survival Data Simulation and Analysis**
+**Comparing Bayesian MCMC methods for interval-censored survival data**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![R](https://img.shields.io/badge/R-%3E%3D4.0.0-blue.svg)](https://www.r-project.org/)
 
-## Overview
+An R package for the MSc Biostatistics research project at Stellenbosch University comparing **Hamiltonian Monte Carlo (HMC)** via Stan and **Metropolis-Hastings (MH)** via JAGS for fitting log-logistic AFT models to interval-censored survival data with survey weights.
 
-`bayesianICSimulations` is an R package for comparing Bayesian MCMC methods for fitting log-logistic accelerated failure time (AFT) models to interval-censored survival data with survey weights. Designed for MSc research in Biostatistics, it implements:
+---
 
-- **Hamiltonian Monte Carlo (HMC)** via Stan/CmdStanR
-- **Metropolis-Hastings (MH)** via JAGS
+## Research Context
 
-The package provides tools for large-scale simulation studies (5,400+ datasets), parallel HPC execution, comprehensive ADEMP-framework analysis, and publication-ready visualization.
+This package implements a simulation study following the **ADEMP framework** (Morris et al., 2019) across:
 
-## Features
-
-### Core Functionality
-
-- **Model Fitting**: Parallel MCMC fitting with standardized outputs
-- **Result Loading**: Parse and combine thousands of simulation results
-- **Statistical Analysis**: Monte Carlo standard errors, bias, RMSE, coverage
-- **Visualization**: Ghosted spaghetti plots for weighted interval-censored survival curves
-- **HPC Support**: PBS job array scripts and batchtools integration
+- **5,400 datasets** (1,800 per sample size: n = 200, 2,000, 10,000)
+- **3 scenarios** varying censoring rates and weight distributions
+- **2 MCMC methods**: HMC (Stan) and Metropolis-Hastings (JAGS)
+- **10,800 total model fits** executed on an HPC cluster (PBS job arrays)
 
 ### Statistical Model
 
-Log-logistic AFT model with interval censoring and survey weights:
+Log-logistic AFT model with interval censoring and optional survey weights:
 
 ```
-log(λ_i) = log(α) + β × X_i
+log(λᵢ) = log(α) + β × Xᵢ
 
 Priors:
   α ~ Lognormal(log(5), 1)
@@ -36,316 +31,180 @@ Priors:
   γ ~ Lognormal(0, 0.5)
 ```
 
+---
+
 ## Installation
 
 ### Prerequisites
 
-1. **R** (≥ 4.0.0)
-2. **CmdStanR** (for HMC) - Install from: https://mc-stan.org/r-packages/
-3. **JAGS** (for MH) - Install from: https://mcmc-jags.sourceforge.io/
+- **R** ≥ 4.0.0
+- **CmdStan** (for HMC): installed via `cmdstanr::install_cmdstan()`
+- **JAGS** (for MH): `brew install jags` / `sudo apt-get install jags`
 
 ### Install Package
 
 ```r
-# Install from local directory
-devtools::install()
+# From GitHub
+devtools::install_github("alexvantwisk/bayesianICSimulations")
 
-# Or from GitHub (if hosted)
-# devtools::install_github("username/bayesianICSimulations")
-```
-
-### Install CmdStanR
-
-```r
+# Install CmdStan
 install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
 cmdstanr::install_cmdstan()
-```
 
-### Install JAGS
-
-- **macOS**: `brew install jags`
-- **Linux**: `sudo apt-get install jags` or compile from source
-- **Windows**: Download installer from https://mcmc-jags.sourceforge.io/
-
-Then install the R package:
-
-```r
+# Install rjags
 install.packages("rjags")
 ```
 
+---
+
 ## Quick Start
 
-### Model Fitting
+### Fit Models
 
 ```r
 library(bayesianICSimulations)
 
-# Fit HMC models to all datasets in a directory
-hmc_results <- fit_logistic_hmc(
-  sim_dir = "sim_data/n200",
+# HMC via Stan
+fit_logistic_hmc(
+  sim_dir    = "sim_data/n200",
   results_dir = "mcmc_outputs/hmc_n200"
 )
 
-# Fit MH models
-mh_results <- fit_logistic_mh(
-  sim_dir = "sim_data/n200",
+# Metropolis-Hastings via JAGS
+fit_logistic_mh(
+  sim_dir    = "sim_data/n200",
   results_dir = "mcmc_outputs/mh_n200"
 )
 ```
 
-### Load and Combine Results
+### Analysis Pipeline
 
 ```r
-# Load all results for analysis
-data <- combine_results(
-  methods = c("hmc", "mh"),
-  sample_sizes = c(200, 2000, 10000),
-  results_dir = "results"
+# 1. Combine all results
+results <- combine_results(
+  results_dir = "mcmc_outputs",
+  data_dir    = "outputs/combined_results"
 )
 
-# Access components
-summaries <- data$summaries
-diagnostics <- data$diagnostics
-metadata <- data$scenario_metadata
-
-# Calculate performance metrics
-library(dplyr)
-performance <- summaries %>%
-  group_by(method, variable, n_obs) %>%
-  summarise(
-    bias = mean(error, na.rm = TRUE),
-    rmse = sqrt(mean(squared_error, na.rm = TRUE)),
-    coverage = mean(contains_truth, na.rm = TRUE)
-  )
-```
-
-### Visualization
-
-```r
-# Load simulation replicates
-sims <- load_sims_from_dir(
-  "sim_data/n200",
-  pattern = ".*_c0\\.1_whigh\\.rds$"
+# 2. Statistical analysis (bias, RMSE, coverage, MCSEs)
+analysis <- perform_statistical_analysis(
+  data_dir   = "outputs/combined_results",
+  output_dir = "outputs/analysis"
 )
 
-# Fit parametric models and summarize
-results <- summarise_weighted_curves(
-  sims,
-  weight_metric = "cv",
-  include_covariate = TRUE
-)
-
-# Create ghosted spaghetti plot
-plot_weighted_spaghetti(
-  sum_df = results$sum_df,
-  rep_df = results$rep_df,
-  true_alpha = 5.0,
-  true_gamma = 1.5,
-  true_beta = -0.5,
-  which = "S",  # S=survival, H=cumulative hazard, h=hazard
-  n_ghost = 30
+# 3. Generate all 13 publication-ready figures
+plots <- save_all_figures(
+  data_dir   = "outputs/combined_results",
+  output_dir = "outputs/figures",
+  dpi        = 320
 )
 ```
 
-## HPC Workflow
-
-### Setup (One-Time)
+Or run as batch scripts:
 
 ```bash
-# On HPC cluster
-bash inst/hpc/setup_hpc.sh
+Rscript inst/scripts/01_combine_results.R
+Rscript inst/scripts/02_analysis.R
+Rscript inst/scripts/03_visualization.R
 ```
 
-This installs JAGS from source, CmdStan, and all R dependencies.
+---
+
+## HPC Workflow (PBS Cluster)
+
+### One-Time Setup
+
+```bash
+bash inst/hpc/setup_hpc.sh   # Installs JAGS from source, CmdStan, R packages
+```
 
 ### Submit Jobs
 
 ```bash
-# Submit all 5400 datasets
-qsub inst/hpc/submit_all.pbs
-
-# Or submit by sample size
-qsub inst/hpc/submit_n200.pbs    # 1800 datasets
-qsub inst/hpc/submit_n2000.pbs   # 1800 datasets
-qsub inst/hpc/submit_n10000.pbs  # 1800 datasets
+qsub inst/hpc/submit_all.pbs       # All 5,400 datasets
+qsub inst/hpc/submit_n200.pbs      # n=200 only (1,800 datasets)
+qsub inst/hpc/submit_n2000.pbs     # n=2,000 only
+qsub inst/hpc/submit_n10000.pbs    # n=10,000 only
 ```
 
-### Monitor Progress
+### Monitor & Rerun
 
 ```bash
-# Check job status
-qstat -u $USER
-
-# Count completed fits
-for size in n200 n2000 n10000; do
-  for method in hmc mh; do
-    count=$(ls mcmc_outputs/$size/$method/summaries/*.rds 2>/dev/null | wc -l)
-    echo "$size/$method: $count summaries"
-  done
-done
+qstat -u $USER                               # Check job status
+qsub -J 42,105,237 inst/hpc/submit_n200.pbs  # Rerun specific failed tasks
 ```
 
-### Rerun Failed Jobs
-
-```bash
-# Rerun specific tasks
-qsub -J 1-10 inst/hpc/submit_n200.pbs          # Tasks 1-10
-qsub -J 42,105,237 inst/hpc/submit_n200.pbs   # Specific tasks
-```
-
-## Analysis Pipeline
-
-After model fits complete, you can run the analysis in two ways:
-
-### Option 1: Run Scripts (Recommended for batch processing)
-
-```bash
-# Step 1: Combine all results
-Rscript inst/scripts/01_combine_results.R
-
-# Step 2: Statistical analysis (ADEMP framework)
-Rscript inst/scripts/02_analysis.R
-
-# Step 3: Generate publication figures
-Rscript inst/scripts/03_visualization.R
-```
-
-### Option 2: Use Package Functions (Recommended for interactive analysis)
-
-```r
-library(bayesianICSimulations)
-
-# Step 1: Combine results
-results <- combine_results(
-  results_dir = "mcmc_outputs",
-  data_dir = "outputs/combined_results",
-  verbose = TRUE
-)
-
-# Step 2: Perform statistical analysis
-analysis <- perform_statistical_analysis(
-  data_dir = "outputs/combined_results",
-  output_dir = "outputs/analysis",
-  verbose = TRUE
-)
-
-# Step 3: Generate all figures
-plots <- save_all_figures(
-  data_dir = "outputs/combined_results",
-  output_dir = "outputs/figures",
-  dpi = 320
-)
-
-# Or create individual figures
-fig2 <- create_figure2_coverage(prepare_plot_data("outputs/combined_results"))
-fig2 # Display in RStudio
-# Customize and save
-ggsave("my_custom_coverage.png", fig2, width = 10, height = 6)
-```
+---
 
 ## Package Structure
 
 ```
 bayesianICSimulations/
-├── R/                          # Package functions
-│   ├── fitting_hmc.R           # HMC model fitting (fit_logistic_hmc)
-│   ├── fitting_mh.R            # MH model fitting (fit_logistic_mh)
-│   ├── combine_results.R       # Data combination pipeline
-│   ├── analysis_pipeline.R     # Statistical analysis (perform_statistical_analysis)
-│   ├── figures.R               # All 13 figure creation functions
-│   ├── data_loading.R          # Result loading and parsing
-│   ├── analysis_mcse.R         # MCSE calculations
-│   ├── analysis_stats.R        # Statistical tests
-│   ├── viz_survival.R          # Survival visualization
-│   └── viz_helpers.R           # Internal helpers
+├── R/
+│   ├── fitting_hmc.R          # fit_logistic_hmc()
+│   ├── fitting_mh.R           # fit_logistic_mh()
+│   ├── combine_results.R      # combine_results()
+│   ├── analysis_pipeline.R    # perform_statistical_analysis()
+│   ├── analysis_mcse.R        # MCSE calculations
+│   ├── analysis_stats.R       # Statistical tests
+│   ├── figures.R              # 13 figure functions
+│   ├── tables.R               # Table generation
+│   ├── viz_survival.R         # Survival curve visualisation
+│   └── utils.R                # Internal helpers
 │
 ├── inst/
-│   ├── models/                 # Stan and JAGS models
-│   │   ├── loglogistic_interval.stan
-│   │   └── loglogistic_interval.jags
-│   ├── scripts/                # Convenience wrapper scripts
-│   │   ├── 01_combine_results.R      # Calls combine_results()
-│   │   ├── 02_analysis.R             # Calls perform_statistical_analysis()
-│   │   ├── 03_visualization.R        # Calls save_all_figures()
-│   │   ├── run_fits.R
-│   │   └── example_usage.R
-│   ├── hpc/                    # HPC submission scripts
-│   │   ├── setup_hpc.sh
-│   │   ├── submit_all.pbs
-│   │   └── submit_n*.pbs
-│   └── templates/              # Configuration templates
-│       ├── batchtools.pbs.tmpl
-│       └── batchtools.conf.R
+│   ├── models/
+│   │   ├── loglogistic_interval.stan   # Stan model
+│   │   └── loglogistic_interval.jags   # JAGS model
+│   ├── scripts/
+│   │   ├── 01_combine_results.R
+│   │   ├── 02_analysis.R
+│   │   ├── 03_visualization.R
+│   │   └── run_fits.R                  # PBS array job entry point
+│   └── hpc/
+│       ├── setup_hpc.sh
+│       ├── submit_all.pbs
+│       └── submit_n{200,2000,10000}.pbs
 │
-├── man/                        # Documentation (auto-generated)
-├── data-raw/                   # Data generation scripts
-├── DESCRIPTION                 # Package metadata
-├── NAMESPACE                   # Export declarations (auto-generated)
-└── README.md                   # This file
+├── DESCRIPTION
+├── NAMESPACE
+└── README.md
 ```
 
-## Function Reference
+---
 
-### Model Fitting
+## Key Implementation Details
 
-- `fit_logistic_hmc()` - Fit log-logistic AFT models using HMC
-- `fit_logistic_mh()` - Fit log-logistic AFT models using MH
-- `compute_derived_quantities_mh()` - Calculate derived quantities from MH samples
+| Aspect | HMC (Stan) | MH (JAGS) |
+|--------|-----------|-----------|
+| Likelihood | Direct `log_diff_exp` | Zeros trick (`dpois`) |
+| Right-censoring | Native `is_inf(R[i])` | Sentinel `R[i] > 1e10` |
+| Chains | 4 × (1000 warmup + 5000 samples) | 4 × (1000 adapt + 1000 burnin + 5000 samples) |
+| Seed strategy | Fixed (2025) across all datasets | Unique per dataset (2025 + index) |
+| Divergence tracking | Yes | No |
 
-### Data Loading
+Both methods normalize survey weights to sum to N: `wᵢ* = wᵢ × (N / Σwᵢ)`
 
-- `parse_filename()` - Parse metadata from simulation filenames
-- `load_summary_file()` - Load single summary file with metadata
-- `load_summaries()` - Load all summaries for method/sample size
-- `load_diagnostics()` - Load all diagnostics for method/sample size
-- `combine_results()` - High-level wrapper to combine all results
-
-### Statistical Analysis
-
-- `mcse_mean()` - Monte Carlo standard error for means
-- `mcse_prop()` - Monte Carlo standard error for proportions
-- `calc_bias_rmse()` - Calculate bias, RMSE, and their MCSEs
-- `cohen_d()` - Calculate Cohen's d effect size
-
-### Visualization
-
-- `load_sims_from_dir()` - Load simulation replicates from directory
-- `summarise_weighted_curves()` - Fit parametric models and compute summaries
-- `plot_weighted_spaghetti()` - Create ghosted spaghetti plots
-- `facet_design_panels()` - Multi-panel faceted visualization
-- `compute_true_loglogistic()` - Calculate true survival/hazard curves
-- `compute_marginal_survival()` - Calculate marginal survival
-
-## Examples
-
-See `inst/scripts/example_usage.R` for comprehensive examples including:
-
-- Single design cell analysis
-- Intercept-only models
-- Multi-panel faceted plots
-- Weight type comparisons
+---
 
 ## Citation
 
-If you use this package in your research, please cite:
+```bibtex
+@misc{vantwisk2025,
+  author  = {van Twisk, Alexander},
+  title   = {{bayesianICSimulations}: Bayesian Interval-Censored Survival
+             Data Simulation and Analysis},
+  year    = {2025},
+  note    = {R package version 1.0.0. MSc Biostatistics Dissertation,
+             Stellenbosch University},
+  url     = {https://github.com/alexvantwisk/bayesianICSimulations}
+}
+```
 
-```
-van Twisk, A. (2025). bayesianICSimulations: Bayesian Interval-Censored
-Survival Data Simulation and Analysis. R package version 0.1.0.
-MSc Biostatistics Dissertation, Stellenbosch University.
-```
+---
 
 ## License
 
-MIT License. See LICENSE file for details.
+MIT — see [LICENSE](LICENSE) for details.
 
-## Author
-
-Alexander van Twisk
-MSc Biostatistics, Stellenbosch University
-
-## Acknowledgments
-
-This package was developed as part of an MSc research project comparing MCMC
-methods for interval-censored survival data analysis following the ADEMP
-simulation framework (Morris et al., 2019).
+**Author**: Alexander van Twisk, MSc Biostatistics, Stellenbosch University
