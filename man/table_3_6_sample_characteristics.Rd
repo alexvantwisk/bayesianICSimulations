@@ -2,7 +2,7 @@
 % Please edit documentation in R/tables.R
 \name{table_3_6_sample_characteristics}
 \alias{table_3_6_sample_characteristics}
-\title{Table 3.6 — ZIMPHIA 2020 Analysis Sample Characteristics}
+\title{Table 3.6 -- ZIMPHIA 2020 Analysis Sample Characteristics}
 \usage{
 table_3_6_sample_characteristics(
   base_dir = "mcmc_outputs/zimphia",

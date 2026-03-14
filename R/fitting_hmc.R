@@ -66,7 +66,7 @@
 #'   \item Chains: 4
 #'   \item Warmup: 1000 iterations
 #'   \item Sampling: 5000 iterations
-#'   \item Total draws: 20,000 (4 chains × 5000)
+#'   \item Total draws: 20,000 (4 chains x 5000)
 #'   \item Seed: 2025 (fixed for reproducibility)
 #' }
 #'

@@ -134,7 +134,7 @@ save_all_figures <- function(
     formats = formats
   )
 
-  cat("  Creating Figure 3c: Bias–RMSE trade-off...\n")
+  cat("  Creating Figure 3c: Bias\u2013RMSE trade-off...\n")
   plots$fig3c <- create_figure3c_bias_rmse_tradeoff(plot_data)
   save_figure(
     plots$fig3c,
@@ -267,11 +267,6 @@ save_all_figures <- function(
 #' @return List with prepared data frames for plotting
 #' @keywords internal
 prepare_plot_data <- function(data_dir) {
-  suppressPackageStartupMessages({
-    library(dplyr)
-    library(forcats)
-    library(tidyr)
-  })
 
   # Load data
   res <- read.csv(file.path(data_dir, "combined_summaries.csv"))
@@ -705,7 +700,7 @@ create_figure2_coverage <- function(plot_data) {
       colour = "Method",
       shape = "Method",
       title = expression("Coverage of 95% credible intervals for " * beta[1]),
-      caption = "Shaded band marks 95% ± 2 × MCSE from scenario replicates."
+      caption = "Shaded band marks 95% \u00B1 2 \u00D7 MCSE from scenario replicates."
     ) +
     get_theme_sci() +
     ggplot2::theme(
@@ -861,7 +856,7 @@ create_figure3b_rmse <- function(plot_data) {
     get_theme_sci()
 }
 
-#' Create Figure 3c: Precision–accuracy trade-off
+#' Create Figure 3c: Precision--accuracy trade-off
 #' @param plot_data Prepared plot data from prepare_plot_data()
 #' @export
 create_figure3c_bias_rmse_tradeoff <- function(plot_data) {
@@ -943,7 +938,7 @@ create_figure3c_bias_rmse_tradeoff <- function(plot_data) {
       x = expression("Absolute bias of " * beta[1]),
       y = "RMSE of \u03B2\u2081",
       colour = "Method",
-      title = "Bias–RMSE trade-off for \u03B2\u2081"
+      title = "Bias\u2013RMSE trade-off for \u03B2\u2081"
     ) +
     get_theme_sci() +
     ggplot2::theme(
@@ -1103,7 +1098,7 @@ create_figure5b_speedup_heatmap <- function(plot_data) {
       midpoint = 1,
       limits = fill_limits,
       oob = scales::squish,
-      name = "Speed-up (MH ÷ HMC)",
+      name = "Speed-up (MH \u00F7 HMC)",
       labels = function(x) sprintf("%s x", scales::number(x, accuracy = 0.1)),
       guide = ggplot2::guide_colourbar(
         title.position = "left",
@@ -1751,7 +1746,7 @@ create_figureB1_precision_tradeoff <- function(plot_data) {
       y = "Coverage proportion",
       colour = "Method",
       shape = "Method",
-      title = "Precision–coverage trade-off (lines connect HMC-MH pairs)"
+      title = "Precision\u2013coverage trade-off (lines connect HMC-MH pairs)"
     ) +
     get_theme_sci() +
     ggplot2::theme(
@@ -1893,7 +1888,7 @@ create_figureB3_ci_width_violin <- function(plot_data) {
 #' Create Figure 6: Weighted Survival Curves by Design Cell
 #'
 #' Creates a 27-panel figure showing weighted interval-censored survival curves
-#' across all design cells (3 censoring levels × 3 weight types × 3 sample sizes).
+#' across all design cells (3 censoring levels x 3 weight types x 3 sample sizes).
 #' Unlike other figures in this module, this uses raw simulation data with
 #' parametric fits (icenReg) rather than pre-computed MCMC results.
 #'
@@ -1907,7 +1902,7 @@ create_figureB3_ci_width_violin <- function(plot_data) {
 #' @param true_gamma Numeric. True shape parameter. Default: 1.5
 #' @param true_beta Numeric. True AFT coefficient. Default: -0.5
 #'
-#' @return A ggplot object with 27 panels (9 rows × 3 columns)
+#' @return A ggplot object with 27 panels (9 rows x 3 columns)
 #'
 #' @details
 #' This figure provides exploratory visualization of survival curve behavior
@@ -1921,7 +1916,7 @@ create_figureB3_ci_width_violin <- function(plot_data) {
 #'
 #' Faceting structure:
 #' \itemize{
-#'   \item Rows: Sample size × censoring (9 levels: n=200/C=0.1, n=200/C=0.3, ...)
+#'   \item Rows: Sample size x censoring (9 levels: n=200/C=0.1, n=200/C=0.3, ...)
 #'   \item Columns: Weight type (3 levels: none, low, high)
 #' }
 #'
@@ -1945,9 +1940,6 @@ create_figure6_survival_cells <- function(
     stop("Package 'stringr' is required but not installed.")
   }
 
-  suppressPackageStartupMessages({
-    library(dplyr)
-  })
 
   # Initialize storage
   results_list <- list()
@@ -2378,6 +2370,7 @@ if (!exists("load_zimphia_runtime_comparison")) {
 #' @param output_dir Directory where figures should be written.
 #' @param zimphia_dir Directory containing ZIMPHIA outputs.
 #' @param sim_root Root directory containing simulation datasets (data/n*).
+#' @param sim_reps_per_cell Number of simulation replicates per design cell to sample.
 #' @param formats File formats to save (default png).
 #' @param width Default width for saved figures.
 #' @param height Default height for saved figures.
@@ -2508,13 +2501,6 @@ collect_sim_interval_widths <- function(
   per_cell = 3,
   sample_sizes = c(200, 2000, 10000)
 ) {
-  suppressPackageStartupMessages({
-    library(dplyr)
-    library(stringr)
-    library(tidyr)
-    library(purrr)
-    library(tibble)
-  })
 
   width_list <- purrr::map(sample_sizes, function(n) {
     dir_path <- file.path(sim_root, paste0("n", n))
@@ -2588,12 +2574,6 @@ create_figure3_6_zimphia_interval_patterns <- function(
   sim_root = "data",
   per_cell = 3
 ) {
-  suppressPackageStartupMessages({
-    library(dplyr)
-    library(ggplot2)
-    library(patchwork)
-    library(scales)
-  })
 
   zimphia_df <- load_zimphia_prepared_data(zimphia_dir) %>%
     dplyr::filter(is.finite(R)) %>%
@@ -2641,7 +2621,7 @@ create_figure3_6_zimphia_interval_patterns <- function(
     ) %>%
     dplyr::mutate(
       summary = sprintf(
-        "%s median %.1f [%.1f–%.1f]",
+        "%s median %.1f [%.1f\u2013%.1f]",
         source,
         median,
         p25,
@@ -2691,7 +2671,7 @@ create_figure3_6_zimphia_interval_patterns <- function(
     ) +
     ggplot2::coord_cartesian(xlim = c(0, xmax)) +
     ggplot2::labs(
-      title = "Panel A — Interval width distribution",
+      title = "Panel A \u2014 Interval width distribution",
       x = "Interval width (years)",
       y = "Weighted count (log scale)"
     ) +
@@ -2743,7 +2723,7 @@ create_figure3_6_zimphia_interval_patterns <- function(
     ggplot2::scale_fill_manual(values = palette_sources, guide = "none") +
     ggplot2::coord_cartesian(xlim = c(0, xmax)) +
     ggplot2::labs(
-      title = "Panel B — Stratified by gender",
+      title = "Panel B \u2014 Stratified by gender",
       x = "Interval width (years)",
       y = "Weighted density"
     ) +
@@ -2772,12 +2752,6 @@ create_figure3_6_zimphia_interval_patterns <- function(
 create_figure3_7_zimphia_convergence_traces <- function(
   zimphia_dir = "mcmc_outputs/zimphia"
 ) {
-  suppressPackageStartupMessages({
-    library(dplyr)
-    library(tidyr)
-    library(ggplot2)
-    library(patchwork)
-  })
 
   # Load draws and summaries
   hmc_draws <- load_zimphia_draws("hmc", zimphia_dir)
@@ -2855,7 +2829,7 @@ create_figure3_7_zimphia_convergence_traces <- function(
         colour = "grey25"
       ) +
       ggplot2::labs(
-        title = paste(method_name, "—", param_label),
+        title = paste(method_name, "\u2014", param_label),
         x = if (show_x_label) "Iteration" else NULL,
         y = if (show_y_label) "Parameter value" else NULL,
         colour = "Chain"
@@ -2874,7 +2848,7 @@ create_figure3_7_zimphia_convergence_traces <- function(
     hmc_draws,
     "HMC",
     "alpha",
-    "α (baseline)",
+    "\u03B1 (baseline)",
     show_y_label = TRUE,
     show_x_label = FALSE
   )
@@ -2883,7 +2857,7 @@ create_figure3_7_zimphia_convergence_traces <- function(
     hmc_draws,
     "HMC",
     "beta",
-    "β (gender)",
+    "\u03B2 (gender)",
     show_y_label = FALSE,
     show_x_label = FALSE
   )
@@ -2892,7 +2866,7 @@ create_figure3_7_zimphia_convergence_traces <- function(
     mh_draws,
     "MH",
     "alpha",
-    "α (baseline)",
+    "\u03B1 (baseline)",
     show_y_label = TRUE,
     show_x_label = TRUE
   )
@@ -2901,7 +2875,7 @@ create_figure3_7_zimphia_convergence_traces <- function(
     mh_draws,
     "MH",
     "beta",
-    "β (gender)",
+    "\u03B2 (gender)",
     show_y_label = FALSE,
     show_x_label = TRUE
   )
@@ -2932,11 +2906,6 @@ create_figure3_7_zimphia_convergence_traces <- function(
 create_figure3_8_zimphia_posterior_forest <- function(
   zimphia_dir = "mcmc_outputs/zimphia"
 ) {
-  suppressPackageStartupMessages({
-    library(dplyr)
-    library(ggplot2)
-    library(tidyr)
-  })
 
   zimphia_dat <- load_zimphia_prepared_data(zimphia_dir)
   observed_n <- nrow(zimphia_dat)
@@ -2964,14 +2933,14 @@ create_figure3_8_zimphia_posterior_forest <- function(
   param_labels <- tibble::tibble(
     variable = c("alpha", "beta", "gamma"),
     label = c(
-      "α — Baseline median (years)",
-      "β — Gender effect (female vs male)",
-      "γ — Log-logistic shape"
+      "\u03B1 \u2014 Baseline median (years)",
+      "\u03B2 \u2014 Gender effect (female vs male)",
+      "\u03B3 \u2014 Log-logistic shape"
     ),
     facet = c(
-      "Alpha — median years",
-      "Beta — covariate effect",
-      "Gamma — shape parameter"
+      "Alpha \u2014 median years",
+      "Beta \u2014 covariate effect",
+      "Gamma \u2014 shape parameter"
     )
   )
 
@@ -3148,11 +3117,6 @@ create_figure3_8_zimphia_posterior_forest <- function(
 create_figure3_9_zimphia_beta_comparison <- function(
   zimphia_dir = "mcmc_outputs/zimphia"
 ) {
-  suppressPackageStartupMessages({
-    library(dplyr)
-    library(ggplot2)
-    library(scales)
-  })
 
   draws <- dplyr::bind_rows(
     load_zimphia_draws("hmc", zimphia_dir) %>%
@@ -3227,12 +3191,6 @@ create_figure3_9_zimphia_beta_comparison <- function(
 create_figure3_10_zimphia_ess_per_sec <- function(
   zimphia_dir = "mcmc_outputs/zimphia"
 ) {
-  suppressPackageStartupMessages({
-    library(dplyr)
-    library(ggplot2)
-    library(scales)
-    library(tidyr)
-  })
 
   method_df <- load_zimphia_method_comparison(zimphia_dir) %>%
     dplyr::filter(variable %in% c("alpha", "beta", "gamma")) %>%
@@ -3292,11 +3250,6 @@ create_figure3_10_zimphia_ess_per_sec <- function(
 create_figure3_11_zimphia_runtime_bars <- function(
   zimphia_dir = "mcmc_outputs/zimphia"
 ) {
-  suppressPackageStartupMessages({
-    library(dplyr)
-    library(ggplot2)
-    library(scales)
-  })
 
   runtime_df <- load_zimphia_runtime_comparison(zimphia_dir) %>%
     dplyr::transmute(

@@ -1303,7 +1303,7 @@ summarise_zimphia_missing_flow <- function(
 
   flow <- joined %>%
     apply_step(bt_status == 1, "Valid biomarker result") %>%
-    apply_step(age >= 15, "Age ≥ 15 years") %>%
+    apply_step(age >= 15, "Age \u2265 15 years") %>%
     apply_step(sexever == 1, "Ever sexually active") %>%
     apply_step(!is.na(firstsxage), "Non-missing age at debut") %>%
     apply_step(!is.na(gender), "Recorded gender") %>%
@@ -1330,7 +1330,7 @@ summarise_zimphia_missing_flow <- function(
   )
 }
 
-#' Table 3.6 — ZIMPHIA 2020 Analysis Sample Characteristics
+#' Table 3.6 -- ZIMPHIA 2020 Analysis Sample Characteristics
 #'
 #' Summarises analytic sample composition, interval structure, weight dispersion,
 #' and missing-data attrition counts for the ZIMPHIA 2020 analysis dataset.
@@ -1385,7 +1385,7 @@ table_3_6_sample_characteristics <- function(
     dplyr::mutate(
       interval_type = dplyr::if_else(
         is.infinite(R),
-        "Right-censored (HIV−)",
+        "Right-censored (HIV\u2212)",
         "Interval-censored (HIV+)"
       ),
       width = dplyr::if_else(is.infinite(R), NA_real_, pmax(R - L, 0))
@@ -1449,7 +1449,7 @@ table_3_6_sample_characteristics <- function(
   section_interval <- tibble::tibble(
     section = "Interval censoring distribution",
     metric = c(
-      "Right-censored share (HIV−)",
+      "Right-censored share (HIV\u2212)",
       "Median interval width (HIV+)",
       "IQR of interval width",
       "Mean lower bound L",
@@ -1462,7 +1462,7 @@ table_3_6_sample_characteristics <- function(
       ),
       scales::number(width_stats$median_width, accuracy = 0.1),
       sprintf(
-        "%s – %s",
+        "%s \u2013 %s",
         scales::number(width_stats$p25, accuracy = 0.1),
         scales::number(width_stats$p75, accuracy = 0.1)
       ),
@@ -1473,9 +1473,9 @@ table_3_6_sample_characteristics <- function(
       )
     ),
     detail = c(
-      "Proportion with R = ∞ (still HIV− at survey)",
+      "Proportion with R = \u221E (still HIV\u2212 at survey)",
       "Years between debut and first positive test",
-      "25th–75th percentile of widths",
+      "25th\u201375th percentile of widths",
       "Average age at sexual debut",
       "Average age at first HIV+ evidence"
     )
@@ -1493,7 +1493,7 @@ table_3_6_sample_characteristics <- function(
     estimate = c(
       scales::number(weight_stats$median, accuracy = 0.01),
       sprintf(
-        "%s – %s",
+        "%s \u2013 %s",
         scales::number(weight_stats$p25, accuracy = 0.01),
         scales::number(weight_stats$p75, accuracy = 0.01)
       ),
@@ -1510,7 +1510,7 @@ table_3_6_sample_characteristics <- function(
       "Inter-quartile range",
       "Range of respondent weights",
       "sd(weight) / mean(weight)",
-      " (∑w)^2 / ∑w^2"
+      " (\u2211w)^2 / \u2211w^2"
     )
   )
 
@@ -1553,7 +1553,7 @@ table_3_6_sample_characteristics <- function(
   tbl %>% gt_to_latex()
 }
 
-#' Table 3.7 — Sampler performance on ZIMPHIA data
+#' Table 3.7 -- Sampler performance on ZIMPHIA data
 #'
 #' Compares runtime, ESS/s, R-hat violations, divergences, and MH acceptance
 #' rate between HMC and MH fits on the ZIMPHIA dataset.
@@ -1596,9 +1596,9 @@ table_3_7_sampler_performance <- function(
   tbl_df <- tibble::tibble(
     metric = c(
       "Runtime (minutes)",
-      "ESS/s (α)",
-      "ESS/s (β)",
-      "Split R̂ > 1.01",
+      "ESS/s (\u03B1)",
+      "ESS/s (\u03B2)",
+      "Split R\u0302 > 1.01",
       "HMC divergences",
       "MH acceptance rate",
       "HMC:MH ratio"
@@ -1637,7 +1637,7 @@ table_3_7_sampler_performance <- function(
     fmt_number(
       columns = c(hmc, mh, ratio),
       rows = metric %in%
-        c("Runtime (minutes)", "ESS/s (α)", "ESS/s (β)", "HMC:MH ratio"),
+        c("Runtime (minutes)", "ESS/s (\u03B1)", "ESS/s (\u03B2)", "HMC:MH ratio"),
       decimals = 2
     ) %>%
     fmt_number(
@@ -1647,13 +1647,13 @@ table_3_7_sampler_performance <- function(
     ) %>%
     fmt_number(
       columns = c(hmc, mh),
-      rows = metric == "Split R̂ > 1.01",
+      rows = metric == "Split R\u0302 > 1.01",
       decimals = 0
     ) %>%
     cols_label(
       hmc = "HMC",
       mh = "MH",
-      ratio = "HMC ÷ MH"
+      ratio = "HMC \u00F7 MH"
     ) %>%
     tab_header(
       title = "Sampler performance on ZIMPHIA 2020 data"
@@ -1665,7 +1665,7 @@ table_3_7_sampler_performance <- function(
   fmt_cols %>% gt_to_latex()
 }
 
-#' Table 3.8 — Parameter estimates from ZIMPHIA application
+#' Table 3.8 -- Parameter estimates from ZIMPHIA application
 #'
 #' Displays posterior medians and 95% CrIs for core parameters with MH and
 #' HMC side-by-side.
@@ -1682,9 +1682,9 @@ table_3_8_parameter_estimates <- function(
   param_map <- tibble::tibble(
     variable = c("alpha", "beta", "gamma"),
     label = c(
-      "Baseline median (α)",
-      "Gender effect (β, female vs male)",
-      "Shape (γ)"
+      "Baseline median (\u03B1)",
+      "Gender effect (\u03B2, female vs male)",
+      "Shape (\u03B3)"
     ),
     group = c("Baseline", "Covariate", "Shape"),
     digits = c(2, 3, 2)
@@ -1755,7 +1755,7 @@ table_3_8_parameter_estimates <- function(
   tbl %>% gt_to_latex()
 }
 
-#' Table 3.9 — ZIMPHIA vs simulation scalability check
+#' Table 3.9 -- ZIMPHIA vs simulation scalability check
 #'
 #' Compares predicted runtime and ESS/s from simulation scaling laws against the
 #' observed ZIMPHIA fits, including observed/predicted ratios.
@@ -1928,7 +1928,7 @@ table_3_9_scalability_validation <- function(
       mh_obs = "Observed MH",
       hmc_ratio = "Obs/Pred HMC",
       mh_ratio = "Obs/Pred MH",
-      observed_hmc_mh = "Observed HMC ÷ MH"
+      observed_hmc_mh = "Observed HMC \u00F7 MH"
     ) %>%
     fmt_number(
       columns = c(hmc_pred, mh_pred, hmc_obs, mh_obs),
@@ -1953,7 +1953,7 @@ table_3_9_scalability_validation <- function(
 
 #' Save ZIMPHIA tables to disk
 #'
-#' Convenience wrapper that generates Tables 3.6–3.9 and writes each to
+#' Convenience wrapper that generates Tables 3.6--3.9 and writes each to
 #' outputs/tables as individual LaTeX fragments.
 #'
 #' @param output_dir Directory where tables should be written.

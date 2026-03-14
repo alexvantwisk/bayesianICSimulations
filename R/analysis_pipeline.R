@@ -59,9 +59,6 @@ perform_statistical_analysis <- function(
   verbose = TRUE
 ) {
   # Load required packages
-  if (!requireNamespace("tidyverse", quietly = TRUE)) {
-    stop("Package 'tidyverse' is required but not installed.")
-  }
   if (!requireNamespace("broom", quietly = TRUE)) {
     stop("Package 'broom' is required but not installed.")
   }
@@ -94,14 +91,14 @@ perform_statistical_analysis <- function(
   study_design <- readRDS(file.path(data_dir, "study_design.rds"))
 
   if (verbose) {
-    cat(sprintf("  ✓ Loaded %d summary records\n", nrow(combined_summaries)))
+    cat(sprintf("  \u2713 Loaded %d summary records\n", nrow(combined_summaries)))
     cat(sprintf(
-      "  ✓ Loaded %d diagnostic records\n",
+      "  \u2713 Loaded %d diagnostic records\n",
       nrow(combined_diagnostics)
     ))
-    cat(sprintf("  ✓ Loaded %d scenarios\n", nrow(scenario_metadata)))
+    cat(sprintf("  \u2713 Loaded %d scenarios\n", nrow(scenario_metadata)))
     cat(sprintf(
-      "  ✓ Loaded study design (expected: %d replicates/scenario)\n\n",
+      "  \u2713 Loaded study design (expected: %d replicates/scenario)\n\n",
       study_design$replicates_per_scenario
     ))
   }
@@ -154,7 +151,7 @@ perform_statistical_analysis <- function(
 
   if (verbose) {
     cat(sprintf(
-      "  ✓ Convergence analysis complete for %d scenarios\n",
+      "  \u2713 Convergence analysis complete for %d scenarios\n",
       nrow(convergence_analysis)
     ))
 
@@ -199,7 +196,7 @@ perform_statistical_analysis <- function(
 
   if (verbose) {
     cat(sprintf(
-      "  ✓ Efficiency analysis complete for %d scenarios\n",
+      "  \u2713 Efficiency analysis complete for %d scenarios\n",
       nrow(efficiency_analysis)
     ))
   }
@@ -362,7 +359,7 @@ perform_statistical_analysis <- function(
 
   if (verbose) {
     cat(sprintf(
-      "  ✓ Accuracy analysis complete for %d parameter × scenario combinations\n",
+      "  \u2713 Accuracy analysis complete for %d parameter \u00D7 scenario combinations\n",
       nrow(accuracy_analysis)
     ))
 
@@ -487,7 +484,7 @@ perform_statistical_analysis <- function(
   statistical_tests$effect_sizes <- effect_sizes
 
   if (verbose) {
-    cat("  ✓ Statistical tests complete\n")
+    cat("  \u2713 Statistical tests complete\n")
   }
 
   # 5. SCENARIO-LEVEL SUMMARY
@@ -571,7 +568,7 @@ perform_statistical_analysis <- function(
 
   if (verbose) {
     cat(sprintf(
-      "  ✓ Scenario summary complete with %d rows\n",
+      "  \u2713 Scenario summary complete with %d rows\n",
       nrow(scenario_summaries)
     ))
   }
@@ -584,7 +581,7 @@ perform_statistical_analysis <- function(
   write_csv(scenario_summaries, file.path(output_dir, "scenario_summaries.csv"))
   saveRDS(scenario_summaries, file.path(output_dir, "scenario_summaries.rds"))
   if (verbose) {
-    cat("  ✓ Saved scenario_summaries.csv/.rds\n")
+    cat("  \u2713 Saved scenario_summaries.csv/.rds\n")
   }
 
   write_csv(
@@ -592,7 +589,7 @@ perform_statistical_analysis <- function(
     file.path(output_dir, "convergence_analysis.csv")
   )
   if (verbose) {
-    cat("  ✓ Saved convergence_analysis.csv\n")
+    cat("  \u2713 Saved convergence_analysis.csv\n")
   }
 
   write_csv(
@@ -600,12 +597,12 @@ perform_statistical_analysis <- function(
     file.path(output_dir, "efficiency_comparisons.csv")
   )
   if (verbose) {
-    cat("  ✓ Saved efficiency_comparisons.csv\n")
+    cat("  \u2713 Saved efficiency_comparisons.csv\n")
   }
 
   saveRDS(statistical_tests, file.path(output_dir, "statistical_tests.rds"))
   if (verbose) {
-    cat("  ✓ Saved statistical_tests.rds\n")
+    cat("  \u2713 Saved statistical_tests.rds\n")
   }
 
   # PRINT KEY FINDINGS

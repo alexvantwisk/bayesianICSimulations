@@ -15,6 +15,6 @@ save_zimphia_tables(output_dir = "outputs/tables", ...)
 Invisibly returns named vector of output paths.
 }
 \description{
-Convenience wrapper that generates Tables 3.6–3.9 and writes each to
+Convenience wrapper that generates Tables 3.6--3.9 and writes each to
 outputs/tables as individual LaTeX fragments.
 }

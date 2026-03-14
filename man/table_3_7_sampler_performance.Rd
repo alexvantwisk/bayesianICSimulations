@@ -2,7 +2,7 @@
 % Please edit documentation in R/tables.R
 \name{table_3_7_sampler_performance}
 \alias{table_3_7_sampler_performance}
-\title{Table 3.7 — Sampler performance on ZIMPHIA data}
+\title{Table 3.7 -- Sampler performance on ZIMPHIA data}
 \usage{
 table_3_7_sampler_performance(base_dir = "mcmc_outputs/zimphia")
 }

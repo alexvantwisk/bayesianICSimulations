@@ -85,7 +85,7 @@ Analysis pipeline scripts are in \code{inst/scripts/}:
 }
 
 \author{
-\strong{Maintainer}: Alexander van Twisk \email{your.email@domain.com}
+\strong{Maintainer}: Alexander van Twisk \email{vantwiska@gmail.com}
 
 }
 \keyword{internal}

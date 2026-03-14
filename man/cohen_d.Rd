@@ -25,9 +25,9 @@ HMC and Metropolis-Hastings methods.
 
 \itemize{
 \item |d| < 0.2: Negligible effect
-\item 0.2 ≤ |d| < 0.5: Small effect
-\item 0.5 ≤ |d| < 0.8: Medium effect
-\item |d| ≥ 0.8: Large effect
+\item 0.2 <= |d| < 0.5: Small effect
+\item 0.5 <= |d| < 0.8: Medium effect
+\item |d| >= 0.8: Large effect
 }
 }
 

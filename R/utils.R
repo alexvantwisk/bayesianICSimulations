@@ -5,11 +5,7 @@
 NULL
 
 #' Null coalesce operator (internal)
-#'
-#' @param x First value
-#' @param y  Second value (returned if x is NULL)
-#' @return x if not NULL, otherwise y
-#' @keywords internal
+#' @noRd
 `%||%` <- function(x, y) {
   if (is.null(x)) y else x
 }

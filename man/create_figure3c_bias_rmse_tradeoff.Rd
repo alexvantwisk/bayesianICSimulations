@@ -2,7 +2,7 @@
 % Please edit documentation in R/figures.R
 \name{create_figure3c_bias_rmse_tradeoff}
 \alias{create_figure3c_bias_rmse_tradeoff}
-\title{Create Figure 3c: Precision–accuracy trade-off}
+\title{Create Figure 3c: Precision--accuracy trade-off}
 \usage{
 create_figure3c_bias_rmse_tradeoff(plot_data)
 }
@@ -10,5 +10,5 @@ create_figure3c_bias_rmse_tradeoff(plot_data)
 \item{plot_data}{Prepared plot data from prepare_plot_data()}
 }
 \description{
-Create Figure 3c: Precision–accuracy trade-off
+Create Figure 3c: Precision--accuracy trade-off
 }

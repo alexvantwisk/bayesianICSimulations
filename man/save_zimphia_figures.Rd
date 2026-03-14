@@ -22,6 +22,8 @@ save_zimphia_figures(
 
 \item{sim_root}{Root directory containing simulation datasets (data/n*).}
 
+\item{sim_reps_per_cell}{Number of simulation replicates per design cell to sample.}
+
 \item{formats}{File formats to save (default png).}
 
 \item{width}{Default width for saved figures.}

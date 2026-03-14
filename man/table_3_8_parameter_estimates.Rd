@@ -2,7 +2,7 @@
 % Please edit documentation in R/tables.R
 \name{table_3_8_parameter_estimates}
 \alias{table_3_8_parameter_estimates}
-\title{Table 3.8 — Parameter estimates from ZIMPHIA application}
+\title{Table 3.8 -- Parameter estimates from ZIMPHIA application}
 \usage{
 table_3_8_parameter_estimates(base_dir = "mcmc_outputs/zimphia")
 }

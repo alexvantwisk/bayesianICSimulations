@@ -12,7 +12,7 @@ combine_results(
 }
 \arguments{
 \item{results_dir}{Character string. Path to directory containing
-n{200,2000,10000}/{hmc,mh}/{summaries,diagnostics}/*.rds files.
+n200/n2000/n10000 subdirectories with hmc/mh results.
 Default: "mcmc_outputs"}
 
 \item{data_dir}{Character string. Path to directory where combined datasets
@@ -38,7 +38,7 @@ This function:
 \item Loads all summary and diagnostic .rds files from MCMC outputs
 \item Parses metadata from filenames (scenario, replicate, n, censoring, weights)
 \item Calculates error metrics (bias, RMSE, coverage, CI width)
-\item Adds convergence flags (Rhat ≤ 1.01 & ESS ≥ 400)
+\item Adds convergence flags (Rhat <= 1.01 & ESS >= 400)
 \item Saves four files to data_dir (default: outputs/combined_results/):
 - combined_summaries.rds/csv
 - combined_diagnostics.rds/csv

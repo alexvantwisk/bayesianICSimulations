@@ -19,3 +19,8 @@
 ^REORGANIZATION_SUMMARY\.md$
 ^AGENTS\.md$
 ^PACKAGE_SUMMARY\.md$
+^ZIMPHIA$
+^\.claude$
+^HPC\.code-workspace$
+^dev$
+^inst/models/loglogistic_interval$

@@ -51,7 +51,7 @@ the ADEMP framework.
 # True value: alpha = 5
 estimates <- rnorm(200, mean = 5.05, sd = 0.30)
 calc_bias_rmse(estimates, truth = 5.0)
-# Returns tibble with bias ≈ 0.05, rmse ≈ 0.30, and their MCSEs
+# Returns tibble with bias ~= 0.05, rmse ~= 0.30, and their MCSEs
 }
 
 }

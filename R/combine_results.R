@@ -4,7 +4,7 @@
 #' analysis-ready datasets with error metrics and convergence diagnostics.
 #'
 #' @param results_dir Character string. Path to directory containing
-#'   n{200,2000,10000}/{hmc,mh}/{summaries,diagnostics}/*.rds files.
+#'   n200/n2000/n10000 subdirectories with hmc/mh results.
 #'   Default: "mcmc_outputs"
 #' @param data_dir Character string. Path to directory where combined datasets
 #'   will be saved. Default: "outputs/combined_results"
@@ -23,7 +23,7 @@
 #'   \item Loads all summary and diagnostic .rds files from MCMC outputs
 #'   \item Parses metadata from filenames (scenario, replicate, n, censoring, weights)
 #'   \item Calculates error metrics (bias, RMSE, coverage, CI width)
-#'   \item Adds convergence flags (Rhat ≤ 1.01 & ESS ≥ 400)
+#'   \item Adds convergence flags (Rhat <= 1.01 & ESS >= 400)
 #'   \item Saves four files to data_dir (default: outputs/combined_results/):
 #'     - combined_summaries.rds/csv
 #'     - combined_diagnostics.rds/csv
@@ -60,12 +60,6 @@ combine_results <- function(
   data_dir = file.path("outputs", "combined_results"),
   verbose = TRUE
 ) {
-  # Load required packages
-  if (!requireNamespace("tidyverse", quietly = TRUE)) {
-    stop("Package 'tidyverse' is required but not installed.")
-  }
-
-  library(tidyverse)
   log_msg <- function(...) {
     if (isTRUE(verbose)) {
       message(paste0(...))

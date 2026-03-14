@@ -2,7 +2,7 @@
 % Please edit documentation in R/tables.R
 \name{table_3_9_scalability_validation}
 \alias{table_3_9_scalability_validation}
-\title{Table 3.9 — ZIMPHIA vs simulation scalability check}
+\title{Table 3.9 -- ZIMPHIA vs simulation scalability check}
 \usage{
 table_3_9_scalability_validation(
   base_dir = "mcmc_outputs/zimphia",

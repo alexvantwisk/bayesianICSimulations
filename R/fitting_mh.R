@@ -71,7 +71,7 @@
 #'   \item Adaptation: 1000 iterations (configurable)
 #'   \item Burn-in: 1000 iterations (configurable)
 #'   \item Sampling: 5000 iterations (configurable)
-#'   \item Total draws: 20,000 (4 chains × 5000)
+#'   \item Total draws: 20,000 (4 chains x 5000)
 #'   \item RNG: Wichmann-Hill (JAGS default)
 #' }
 #'

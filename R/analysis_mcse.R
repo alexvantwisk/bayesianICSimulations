@@ -46,7 +46,7 @@ mcse_mean <- function(x) {
 #'
 #' @section Usage:
 #' Commonly used to assess Monte Carlo uncertainty in coverage probability
-#' estimates. For 200 replicates with 95% coverage, MCSE ≈ 0.015.
+#' estimates. For 200 replicates with 95% coverage, MCSE is approximately 0.015.
 #'
 #' @examples
 #' \dontrun{
@@ -106,7 +106,7 @@ mcse_prop <- function(x) {
 #' # True value: alpha = 5
 #' estimates <- rnorm(200, mean = 5.05, sd = 0.30)
 #' calc_bias_rmse(estimates, truth = 5.0)
-#' # Returns tibble with bias ≈ 0.05, rmse ≈ 0.30, and their MCSEs
+#' # Returns tibble with bias ~= 0.05, rmse ~= 0.30, and their MCSEs
 #' }
 #'
 #' @references

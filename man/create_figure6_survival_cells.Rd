@@ -30,11 +30,11 @@ Default: 50}
 \item{true_beta}{Numeric. True AFT coefficient. Default: -0.5}
 }
 \value{
-A ggplot object with 27 panels (9 rows × 3 columns)
+A ggplot object with 27 panels (9 rows x 3 columns)
 }
 \description{
 Creates a 27-panel figure showing weighted interval-censored survival curves
-across all design cells (3 censoring levels × 3 weight types × 3 sample sizes).
+across all design cells (3 censoring levels x 3 weight types x 3 sample sizes).
 Unlike other figures in this module, this uses raw simulation data with
 parametric fits (icenReg) rather than pre-computed MCMC results.
 }
@@ -50,7 +50,7 @@ across the simulation design space. Each panel shows:
 
 Faceting structure:
 \itemize{
-\item Rows: Sample size × censoring (9 levels: n=200/C=0.1, n=200/C=0.3, ...)
+\item Rows: Sample size x censoring (9 levels: n=200/C=0.1, n=200/C=0.3, ...)
 \item Columns: Weight type (3 levels: none, low, high)
 }
 }

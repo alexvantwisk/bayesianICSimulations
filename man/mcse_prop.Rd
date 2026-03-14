@@ -22,7 +22,7 @@ where p is the observed proportion and n is the number of replicates.
 \section{Usage}{
 
 Commonly used to assess Monte Carlo uncertainty in coverage probability
-estimates. For 200 replicates with 95\% coverage, MCSE ≈ 0.015.
+estimates. For 200 replicates with 95\% coverage, MCSE is approximately 0.015.
 }
 
 \examples{
