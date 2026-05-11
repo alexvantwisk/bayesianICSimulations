@@ -24,3 +24,5 @@
 ^HPC\.code-workspace$
 ^dev$
 ^inst/models/loglogistic_interval$
+^tasks$
+^sim_data$

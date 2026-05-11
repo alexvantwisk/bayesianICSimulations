@@ -67,7 +67,7 @@ fit_zimphia_cohort <- function(
   mod <- cmdstanr::cmdstan_model(stan_model_file)
 
   for (lvl in cohort_levels) {
-    sub <- dplyr::filter(work_data, cohort == lvl)
+    sub <- dplyr::filter(work_data, .data$cohort == lvl)
     if (nrow(sub) < 100) {
       warning("Cohort ", lvl, " has only ", nrow(sub),
         " observations; skipping",

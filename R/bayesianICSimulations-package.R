@@ -6,7 +6,7 @@
 NULL
 
 utils::globalVariables(c(
-  ".", ".chain", ".iteration", "HMC", "L", "MH", "R", "S", "S_mean",
+  ".", ".chain", ".data", ".iteration", "HMC", "L", "MH", "R", "S", "S_mean",
   "S_med", "S_q50l", "S_q50u", "S_q95l", "S_q95u", "S_true", "X1",
   "abs_bias", "age", "as.formula", "as_latex", "as_tibble", "axis_max",
   "axis_min", "band_hi", "band_lo", "bias", "bias_converged", "bias_hmc",

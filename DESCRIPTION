@@ -1,6 +1,6 @@
 Package: bayesianICSimulations
 Title: Bayesian Interval-Censored Survival Data Simulation and Analysis
-Version: 1.0.0
+Version: 0.2.0
 Authors@R: person("Alexander", "van Twisk", email = "vantwiska@gmail.com", role = c("aut", "cre"))
 Description: Tools for simulating interval-censored survival data and comparing
     Bayesian inference methods (HMC via Stan, Metropolis-Hastings via JAGS) for
