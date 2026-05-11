@@ -9,7 +9,9 @@ run_simulations(
   n_obs_vec = c(200, 2000, 10000),
   censoring_props = c(0.1, 0.3, 0.5),
   weight_types = c("none", "low", "high"),
-  n_replicates = 200
+  n_replicates = 200L,
+  n_replicates_hmc = NULL,
+  samplers = c("hmc", "mh")
 )
 }
 \arguments{
@@ -22,6 +24,14 @@ run_simulations(
 \item{weight_types}{Vector of weight types.}
 
 \item{n_replicates}{Number of Monte Carlo replicates per scenario.}
+
+\item{n_replicates_hmc}{Optional override for HMC replicate count (default
+= \code{n_replicates}). When set higher than \code{n_replicates}, the extra data
+files are written and the runner is expected to fit only HMC on them.}
+
+\item{samplers}{Character vector of samplers to plan for (subset of
+\code{c("hmc", "mh")}). Attached as an attribute on the returned tibble for
+downstream dispatch.}
 }
 \value{
 Invisibly returns a data frame describing the generated files.
@@ -31,7 +41,7 @@ Run multiple simulation scenarios and save to disk
 }
 \examples{
 \dontrun{
-run_simulations_hmc(
+run_simulations(
   out_dir = tempdir(),
   n_obs_vec = c(200, 1000),
   censoring_props = c(0.1, 0.3),
