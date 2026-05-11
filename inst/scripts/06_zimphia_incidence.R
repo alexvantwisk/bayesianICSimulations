@@ -24,9 +24,9 @@ dir.create("mcmc_outputs/zimphia_incidence", showWarnings = FALSE, recursive = T
 age_grid <- seq(15, 60, by = 0.5)
 
 hazard_male <- compute_age_specific_hazard(draws, age_grid, x = 0) |>
-  mutate(sex = "Male")
+  mutate(sex = factor("Male", levels = c("Female", "Male")))
 hazard_female <- compute_age_specific_hazard(draws, age_grid, x = 1) |>
-  mutate(sex = "Female")
+  mutate(sex = factor("Female", levels = c("Female", "Male")))
 hazard_curves <- bind_rows(hazard_male, hazard_female)
 saveRDS(hazard_curves, "mcmc_outputs/zimphia_incidence/hazard_curves.rds")
 

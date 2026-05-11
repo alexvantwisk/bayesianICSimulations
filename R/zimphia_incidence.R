@@ -20,6 +20,12 @@ compute_age_specific_hazard <- function(draws, ages, x = 0) {
       call. = FALSE
     )
   }
+  if (!is.numeric(x) || length(x) != 1L) {
+    stop("`x` must be a numeric scalar; got ", class(x)[1],
+      " of length ", length(x), ".",
+      call. = FALSE
+    )
+  }
   hazard <- function(a, alpha, beta, gamma) {
     ax <- alpha * exp(beta * x)
     (gamma / ax) * (a / ax)^(gamma - 1) / (1 + (a / ax)^gamma)
