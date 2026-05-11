@@ -30,7 +30,12 @@ get_default_params <- function() {
     follow_max = 40,
 
     # proportion of HIV-negative at survey (right censoring)
-    target_censoring_prop = 0.3
+    target_censoring_prop = 0.3,
+
+    # Weibull misspecification DGM (Task F)
+    # Calibrated so median(T) = 5 (matches log-logistic) with stricter shape
+    k_weibull = 2.0,
+    lambda_weibull = 6.01
   )
 }
 
