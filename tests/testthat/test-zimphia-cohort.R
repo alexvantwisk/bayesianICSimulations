@@ -19,3 +19,7 @@ test_that("derive_birth_cohort respects boundary inclusion", {
     c("1980-1989", "1980-1989", "1965-1979", "1965-1979", NA)
   )
 })
+
+test_that("derive_birth_cohort returns NA for NA age input", {
+  expect_true(is.na(derive_birth_cohort(NA_real_, survey_year = 2020)))
+})

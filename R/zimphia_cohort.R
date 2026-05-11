@@ -47,18 +47,27 @@ fit_zimphia_cohort <- function(
       call. = FALSE
     )
   }
-  if (!"age" %in% names(analysis_data)) {
-    stop("analysis_data must contain an `age` column.", call. = FALSE)
+  required_cols <- c("age", "L", "R", "X1", "weight")
+  missing_cols <- setdiff(required_cols, names(analysis_data))
+  if (length(missing_cols) > 0L) {
+    stop("analysis_data is missing columns: ",
+      paste(missing_cols, collapse = ", "),
+      call. = FALSE
+    )
   }
 
-  cohort <- derive_birth_cohort(analysis_data$age)
-  analysis_data$cohort <- cohort
+  if (!file.exists(stan_model_file)) {
+    stop("Stan model not found: ", stan_model_file, call. = FALSE)
+  }
+
+  work_data <- dplyr::mutate(analysis_data, cohort = derive_birth_cohort(age))
+  cohort_levels <- levels(work_data$cohort)
 
   results <- list()
   mod <- cmdstanr::cmdstan_model(stan_model_file)
 
-  for (lvl in levels(cohort)) {
-    sub <- dplyr::filter(analysis_data, cohort == lvl)
+  for (lvl in cohort_levels) {
+    sub <- dplyr::filter(work_data, cohort == lvl)
     if (nrow(sub) < 100) {
       warning("Cohort ", lvl, " has only ", nrow(sub),
         " observations; skipping",
@@ -69,6 +78,7 @@ fit_zimphia_cohort <- function(
     out_sub <- file.path(output_dir, gsub("\\+", "plus", lvl))
     dir.create(file.path(out_sub, "summaries"), recursive = TRUE, showWarnings = FALSE)
     dir.create(file.path(out_sub, "draws"), recursive = TRUE, showWarnings = FALSE)
+    dir.create(file.path(out_sub, "diagnostics"), recursive = TRUE, showWarnings = FALSE)
 
     stan_data <- list(
       N = nrow(sub),
@@ -93,17 +103,37 @@ fit_zimphia_cohort <- function(
       ~ posterior::quantile2(.x, probs = c(0.025, 0.975)),
       "rhat", "ess_bulk"
     )
-    summ$cohort <- lvl
-    summ$n <- nrow(sub)
-    summ$runtime_secs <- rt
+    summ <- summ |>
+      dplyr::mutate(
+        cohort = lvl,
+        n = nrow(sub),
+        runtime_secs = rt,
+        converged = rhat <= 1.01 & ess_bulk >= 400
+      )
+
+    diag <- tibble::tibble(
+      cohort = lvl,
+      n = nrow(sub),
+      max_rhat = max(summ$rhat, na.rm = TRUE),
+      min_ess_bulk = min(summ$ess_bulk, na.rm = TRUE),
+      n_divergences = sum(fit$sampler_diagnostics(format = "df")$divergent__),
+      runtime_secs = rt
+    )
 
     saveRDS(summ, file.path(out_sub, "summaries", "summary.rds"))
     saveRDS(
       fit$draws(variables = c("alpha", "beta", "gamma"), format = "df"),
       file.path(out_sub, "draws", "draws.rds")
     )
+    saveRDS(diag, file.path(out_sub, "diagnostics", "diag.rds"))
 
     results[[lvl]] <- summ
+  }
+
+  if (length(results) == 0L) {
+    warning("All cohorts were skipped (n < 100); returning empty tibble.",
+      call. = FALSE
+    )
   }
 
   combined <- dplyr::bind_rows(results)
