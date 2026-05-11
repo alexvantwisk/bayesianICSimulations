@@ -1,4 +1,4 @@
-# bayesianICSimulations 0.2.0 (2026-05-11)
+# bayesianICSimulations 1.1.0 (2026-05-11)
 
 Substantive revision in response to BMC reviewer feedback (R&R round 2).
 New features and analyses:
