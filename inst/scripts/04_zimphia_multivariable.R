@@ -23,9 +23,13 @@ indiv_file <- "ZIMPHIA/ZIMPHIA 2020 Datasets (CSV)/zimphia2020adultind.csv"
 if (!file.exists(indiv_file)) {
   stop("ZIMPHIA individual file not found: ", indiv_file, call. = FALSE)
 }
+## Only pull `urban` from the CSV — `age` and `gender` already live on `base`
+## (the prepared_data.rds tibble from run_zimphia_analysis). Pulling them
+## again would produce age.x/age.y after the left_join and df$age/df$gender
+## would resolve to NULL inside prepare_zimphia_multivariable_data().
 indiv <- read_csv(
   indiv_file,
-  col_select = c(personid, age, gender, urban),
+  col_select = c(personid, urban),
   show_col_types = FALSE
 )
 
