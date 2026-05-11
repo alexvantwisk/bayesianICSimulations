@@ -13,10 +13,17 @@ test_that("load_replicate_weights returns the requested columns joined on person
 })
 
 test_that("load_replicate_weights rejects out-of-range n_reps", {
-  csv_path <- test_replicate_weights_csv()
   base <- tibble::tibble(personid = "ZW20000000000101")
   expect_error(
-    load_replicate_weights(base, csv_path, n_reps = 200L),
+    load_replicate_weights(base, csv_path = "nonexistent.csv", n_reps = 200L),
     "n_reps"
+  )
+})
+
+test_that("load_replicate_weights rejects non-integer n_reps", {
+  base <- tibble::tibble(personid = "ZW20000000000101")
+  expect_error(
+    load_replicate_weights(base, csv_path = "nonexistent.csv", n_reps = 1.5),
+    "whole-number"
   )
 })

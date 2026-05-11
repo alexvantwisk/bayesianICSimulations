@@ -16,8 +16,8 @@
 #' @export
 load_replicate_weights <- function(base, csv_path, n_reps = 100L) {
   if (!is.numeric(n_reps) || length(n_reps) != 1L ||
-    n_reps < 1L || n_reps > 175L) {
-    stop("n_reps must be a scalar between 1 and 175; got ", n_reps,
+    n_reps != round(n_reps) || n_reps < 1L || n_reps > 175L) {
+    stop("n_reps must be a whole-number scalar between 1 and 175; got ", n_reps,
       call. = FALSE
     )
   }
@@ -93,7 +93,16 @@ fit_zimphia_design_replicates <- function(
   if (length(rep_cols) == 0L) {
     stop("`weights_long` has no design_wt* columns.", call. = FALSE)
   }
+  if (anyDuplicated(weights_long$personid) > 0) {
+    stop("weights_long contains duplicate personid values; cannot join safely.",
+      call. = FALSE
+    )
+  }
   joined <- dplyr::inner_join(analysis_data, weights_long, by = "personid")
+  n_dropped <- nrow(analysis_data) - nrow(joined)
+  if (n_dropped > 0L) {
+    message(n_dropped, " rows in analysis_data had no match in weights_long and were dropped.")
+  }
   mod <- cmdstanr::cmdstan_model(stan_model_file)
 
   results <- vector("list", length(rep_cols))
@@ -114,6 +123,12 @@ fit_zimphia_design_replicates <- function(
       next
     }
     w_norm <- w_raw[keep] * (N / sum(w_raw[keep]))
+    if (!all(is.finite(w_norm))) {
+      warning("Replicate ", i, ": weight normalisation produced non-finite values; skipping.",
+        call. = FALSE
+      )
+      next
+    }
 
     stan_data <- list(
       N = N,
@@ -142,8 +157,8 @@ fit_zimphia_design_replicates <- function(
     saveRDS(summ, file.path(rep_dir, "summary.rds"))
     results[[i]] <- summ
 
-    cat(sprintf(
-      "Replicate %d/%d done in %.1f s (max Rhat = %.3f)\n",
+    message(sprintf(
+      "Replicate %d/%d done in %.1f s (max Rhat = %.3f)",
       i, length(rep_cols), rt, max(summ$rhat, na.rm = TRUE)
     ))
   }

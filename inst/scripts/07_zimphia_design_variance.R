@@ -6,7 +6,6 @@
 suppressPackageStartupMessages({
   devtools::load_all()
   library(dplyr)
-  library(ggplot2)
 })
 
 prepared_data_file <- "mcmc_outputs/zimphia/zimphia_prepared_data.rds"
@@ -39,8 +38,8 @@ cat(sprintf(
 design_ci <- combined |>
   dplyr::group_by(variable) |>
   dplyr::summarise(
-    design_lo = quantile(median, 0.025),
-    design_hi = quantile(median, 0.975),
+    design_lo = quantile(median, 0.025, na.rm = TRUE),
+    design_hi = quantile(median, 0.975, na.rm = TRUE),
     design_width = design_hi - design_lo,
     .groups = "drop"
   )
