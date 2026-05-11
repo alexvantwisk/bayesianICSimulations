@@ -16,13 +16,29 @@
 #'   and `covariate_levels` (factor levels for reference encoding).
 #' @importFrom dplyr left_join
 #' @importFrom stats model.matrix
-#' @importFrom utils modifyList
+#' @examples
+#' \dontrun{
+#' base <- readRDS("mcmc_outputs/zimphia/zimphia_prepared_data.rds")
+#' indiv <- readr::read_csv(
+#'   "ZIMPHIA/ZIMPHIA 2020 Datasets (CSV)/zimphia2020adultind.csv",
+#'   col_select = c(personid, age, gender, urban)
+#' )
+#' prep <- prepare_zimphia_multivariable_data(
+#'   base, indiv,
+#'   covariates = c("sex", "urban_rural", "age_band")
+#' )
+#' }
 #' @export
 prepare_zimphia_multivariable_data <- function(base, indiv, covariates) {
   recognised <- c("sex", "urban_rural", "age_band", "wealth_quintile")
   unknown <- setdiff(covariates, recognised)
   if (length(unknown) > 0) {
     stop("Unrecognised covariates: ", paste(unknown, collapse = ", "), call. = FALSE)
+  }
+  if (anyDuplicated(indiv$personid) > 0) {
+    stop("`indiv` contains duplicate personid values; cardinality of left_join is ambiguous.",
+      call. = FALSE
+    )
   }
 
   df <- dplyr::left_join(base, indiv, by = "personid")
@@ -36,6 +52,12 @@ prepare_zimphia_multivariable_data <- function(base, indiv, covariates) {
     cols$urban_rural <- as.numeric(df$urban == 2)
   }
   if ("age_band" %in% covariates) {
+    if (anyNA(df$age)) {
+      stop("'age_band' requested but `age` contains NA after the join.",
+        " Drop these rows upstream or omit `age_band` from covariates.",
+        call. = FALSE
+      )
+    }
     band <- cut(df$age,
       breaks = c(14, 24, 34, 49, 64),
       labels = c("15-24", "25-34", "35-49", "50-64"),
@@ -49,6 +71,12 @@ prepare_zimphia_multivariable_data <- function(base, indiv, covariates) {
     cols <- c(cols, as.list(as.data.frame(mat)))
   }
   if ("wealth_quintile" %in% covariates) {
+    if (!"wealthquintile" %in% names(df)) {
+      stop("'wealth_quintile' requested but `wealthquintile` column is absent",
+        " after the join. Verify the `indiv` argument has that column.",
+        call. = FALSE
+      )
+    }
     wq <- factor(df$wealthquintile)
     levels_out$wealth_quintile <- levels(wq)
     mat <- stats::model.matrix(~wq)[, -1, drop = FALSE]
@@ -73,6 +101,13 @@ prepare_zimphia_multivariable_data <- function(base, indiv, covariates) {
 #' @return A list with `summary`, `draws`, `diagnostics`, `runtime_secs`.
 #' @importFrom tibble tibble
 #' @importFrom readr write_csv
+#' @importFrom utils modifyList
+#' @importFrom dplyr case_when
+#' @examples
+#' \dontrun{
+#' res <- fit_zimphia_multivariable(prep)
+#' print(res$summary)
+#' }
 #' @export
 fit_zimphia_multivariable <- function(
   analysis_data,
@@ -129,7 +164,14 @@ fit_zimphia_multivariable <- function(
     ~ posterior::quantile2(.x, probs = c(0.025, 0.975)),
     "rhat", "ess_bulk", "ess_tail"
   )
-  summ$covariate <- c("alpha", colnames(analysis_data$X), "gamma")
+  # Robust label derivation: map summ$variable strings to covariate names,
+  # so reordering by cmdstanr cannot corrupt the labelling.
+  beta_idx <- as.integer(sub("beta\\[(\\d+)\\]", "\\1", summ$variable))
+  summ$covariate <- dplyr::case_when(
+    summ$variable == "alpha" ~ "alpha",
+    summ$variable == "gamma" ~ "gamma",
+    !is.na(beta_idx) ~ colnames(analysis_data$X)[beta_idx]
+  )
 
   saveRDS(summ, file.path(output_dir, "summaries", "summary.rds"))
   readr::write_csv(summ, file.path(output_dir, "summaries", "summary.csv"))

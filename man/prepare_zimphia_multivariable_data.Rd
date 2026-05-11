@@ -26,3 +26,16 @@ Joins demographic columns from the individual file onto the analysis tibble
 produced by \code{run_zimphia_analysis()} and returns a model matrix \code{X} of width
 \code{K} together with the augmented data frame.
 }
+\examples{
+\dontrun{
+base <- readRDS("mcmc_outputs/zimphia/zimphia_prepared_data.rds")
+indiv <- readr::read_csv(
+  "ZIMPHIA/ZIMPHIA 2020 Datasets (CSV)/zimphia2020adultind.csv",
+  col_select = c(personid, age, gender, urban)
+)
+prep <- prepare_zimphia_multivariable_data(
+  base, indiv,
+  covariates = c("sex", "urban_rural", "age_band")
+)
+}
+}

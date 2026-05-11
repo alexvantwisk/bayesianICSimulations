@@ -23,3 +23,31 @@ test_that("prepare_zimphia_multivariable_data builds K-column matrix with correc
   expect_equal(nrow(res$X), 4)
   expect_true(all(res$X[, "sex"] %in% c(0, 1)))
 })
+
+test_that("prepare_zimphia_multivariable_data errors on unknown covariate", {
+  fake_base <- tibble::tibble(
+    personid = "p1", L = 1, R = 10, X1 = 0, weight = 1
+  )
+  fake_indiv <- tibble::tibble(personid = "p1", age = 20, gender = 1, urban = 1)
+  expect_error(
+    prepare_zimphia_multivariable_data(fake_base, fake_indiv, covariates = "typo"),
+    "Unrecognised covariates"
+  )
+})
+
+test_that("prepare_zimphia_multivariable_data errors on NA ages with age_band", {
+  fake_base <- tibble::tibble(
+    personid = c("p1", "p2"), L = c(1, 1), R = c(10, 10),
+    X1 = c(0, 1), weight = c(1, 1)
+  )
+  fake_indiv <- tibble::tibble(
+    personid = c("p1", "p2"), age = c(20, NA), gender = c(1, 2), urban = c(1, 2)
+  )
+  expect_error(
+    prepare_zimphia_multivariable_data(
+      fake_base, fake_indiv,
+      covariates = c("sex", "age_band")
+    ),
+    "age_band.*NA"
+  )
+})

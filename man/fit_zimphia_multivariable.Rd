@@ -27,3 +27,9 @@ A list with \code{summary}, \code{draws}, \code{diagnostics}, \code{runtime_secs
 Wraps the generalised Stan model and saves the same summary/diagnostics/draws
 layout as \code{run_zimphia_analysis()}.
 }
+\examples{
+\dontrun{
+res <- fit_zimphia_multivariable(prep)
+print(res$summary)
+}
+}

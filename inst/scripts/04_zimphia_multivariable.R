@@ -9,10 +9,22 @@ suppressPackageStartupMessages({
   library(readr)
 })
 
-base <- readRDS("mcmc_outputs/zimphia/zimphia_prepared_data.rds")
+prepared_data_file <- "mcmc_outputs/zimphia/zimphia_prepared_data.rds"
+if (!file.exists(prepared_data_file)) {
+  stop(
+    "Prepared data not found: ", prepared_data_file,
+    "\nRun the primary ZIMPHIA analysis first (inst/scripts/03_zimphia_analysis.R).",
+    call. = FALSE
+  )
+}
+base <- readRDS(prepared_data_file)
 
+indiv_file <- "ZIMPHIA/ZIMPHIA 2020 Datasets (CSV)/zimphia2020adultind.csv"
+if (!file.exists(indiv_file)) {
+  stop("ZIMPHIA individual file not found: ", indiv_file, call. = FALSE)
+}
 indiv <- read_csv(
-  "ZIMPHIA/ZIMPHIA 2020 Datasets (CSV)/zimphia2020adultind.csv",
+  indiv_file,
   col_select = c(personid, age, gender, urban),
   show_col_types = FALSE
 )
