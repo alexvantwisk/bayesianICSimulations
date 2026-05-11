@@ -30,3 +30,12 @@ assignment reported by \code{\link[rjags:list.samplers]{rjags::list.samplers()}}
 the project's MH baseline is actually slice-sampling rather than
 adaptive Metropolis (see revision plan Task A).
 }
+\examples{
+\dontrun{
+dat <- list(
+  N = 10, L = rexp(10, 1) + 1e-10, R = rep(1e11, 10),
+  X = rbinom(10, 1, 0.5), w = rep(1, 10), zeros = rep(0, 10)
+)
+audit_jags_samplers(dat)
+}
+}

@@ -11,6 +11,14 @@
 #' @param n_adapt Number of adaptation iterations. Default 100.
 #'
 #' @return A tibble with columns `node` and `sampler`.
+#' @examples
+#' \dontrun{
+#' dat <- list(
+#'   N = 10, L = rexp(10, 1) + 1e-10, R = rep(1e11, 10),
+#'   X = rbinom(10, 1, 0.5), w = rep(1, 10), zeros = rep(0, 10)
+#' )
+#' audit_jags_samplers(dat)
+#' }
 #' @export
 audit_jags_samplers <- function(data,
                                 model_file = system.file(
@@ -19,7 +27,19 @@ audit_jags_samplers <- function(data,
                                 ),
                                 n_chains = 1L,
                                 n_adapt = 100L) {
-  stopifnot(file.exists(model_file))
+  if (!requireNamespace("rjags", quietly = TRUE)) {
+    stop(
+      "Package 'rjags' is required but not installed.\n",
+      "Install JAGS from: https://mcmc-jags.sourceforge.io/",
+      call. = FALSE
+    )
+  }
+  if (!nzchar(model_file)) {
+    stop("JAGS model file path is empty; was the package installed?", call. = FALSE)
+  }
+  if (!file.exists(model_file)) {
+    stop("JAGS model file not found: ", model_file, call. = FALSE)
+  }
   jags_model <- rjags::jags.model(
     file = model_file,
     data = data,
