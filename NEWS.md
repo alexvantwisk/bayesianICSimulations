@@ -1,6 +1,17 @@
 # bayesianICSimulations 1.1.0 (2026-05-11)
 
 Substantive revision in response to BMC reviewer feedback (R&R round 2).
+
+Post-audit corrections (2026-05-16):
+
+- **Design-based variance now uses Rubin's rules** (`combine_design_replicates()`)
+  rather than the 2.5/97.5 percentile of per-replicate posterior medians. The
+  former captured only the between-replicate variance B; the corrected
+  combination is $T = \bar{W} + (1 + 1/m)\,B$ with an approximate 95% CrI
+  $\bar{Q} \pm 1.96\sqrt{T}$. `fit_zimphia_design_replicates()` now saves
+  per-replicate posterior `mean` and `sd` so that the within-replicate
+  variance $\bar{W}$ is recoverable. The 100-replicate re-run was redone.
+
 New features and analyses:
 
 - **JAGS sampler audit** (`audit_jags_samplers()`). Confirms that the project's
