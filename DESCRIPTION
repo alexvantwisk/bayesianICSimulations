@@ -1,6 +1,6 @@
 Package: bayesianICSimulations
 Title: Bayesian Interval-Censored Survival Data Simulation and Analysis
-Version: 1.0.0
+Version: 1.1.0
 Authors@R: person("Alexander", "van Twisk", email = "vantwiska@gmail.com", role = c("aut", "cre"))
 Description: Tools for simulating interval-censored survival data and comparing
     Bayesian inference methods (HMC via Stan, Metropolis-Hastings via JAGS) for
@@ -10,9 +10,8 @@ Description: Tools for simulating interval-censored survival data and comparing
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 Depends:
-    R (>= 4.0.0)
+    R (>= 4.1.0)
 Imports:
     dplyr (>= 1.0.0),
     tidyr (>= 1.0.0),
@@ -40,5 +39,8 @@ Suggests:
     patchwork (>= 1.1.0),
     scales (>= 1.1.0),
     forcats (>= 0.5.0),
-    parallel
+    parallel,
+    testthat (>= 3.0.0)
 Additional_repositories: https://mc-stan.org/r-packages/
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.0.0

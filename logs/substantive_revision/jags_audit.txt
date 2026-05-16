@@ -1,0 +1,10 @@
+JAGS sampler audit
+Date: 2026-05-11 18:53:19.819711
+Model: inst/models/loglogistic_interval.jags
+
+# A tibble: 3 × 2
+  node  sampler         
+  <chr> <chr>           
+1 alpha base::RealSlicer
+2 beta  base::RealSlicer
+3 gamma base::RealSlicer

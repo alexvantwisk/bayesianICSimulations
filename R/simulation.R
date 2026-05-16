@@ -30,7 +30,12 @@ get_default_params <- function() {
     follow_max = 40,
 
     # proportion of HIV-negative at survey (right censoring)
-    target_censoring_prop = 0.3
+    target_censoring_prop = 0.3,
+
+    # Weibull misspecification DGM (Task F)
+    # Calibrated so median(T) = 5 (matches log-logistic) with stricter shape
+    k_weibull = 2.0,
+    lambda_weibull = 6.01
   )
 }
 
@@ -246,11 +251,17 @@ simulate_survival_data <- function(
 #' @param censoring_props Vector of target censoring proportions.
 #' @param weight_types Vector of weight types.
 #' @param n_replicates Number of Monte Carlo replicates per scenario.
+#' @param n_replicates_hmc Optional override for HMC replicate count (default
+#'   = `n_replicates`). When set higher than `n_replicates`, the extra data
+#'   files are written and the runner is expected to fit only HMC on them.
+#' @param samplers Character vector of samplers to plan for (subset of
+#'   `c("hmc", "mh")`). Attached as an attribute on the returned tibble for
+#'   downstream dispatch.
 #'
 #' @return Invisibly returns a data frame describing the generated files.
 #' @examples
 #' \dontrun{
-#' run_simulations_hmc(
+#' run_simulations(
 #'   out_dir = tempdir(),
 #'   n_obs_vec = c(200, 1000),
 #'   censoring_props = c(0.1, 0.3),
@@ -264,56 +275,59 @@ run_simulations <- function(
   n_obs_vec = c(200, 2000, 10000),
   censoring_props = c(0.1, 0.3, 0.5),
   weight_types = c("none", "low", "high"),
-  n_replicates = 200
+  n_replicates = 200L,
+  n_replicates_hmc = NULL,
+  samplers = c("hmc", "mh")
 ) {
   set.seed(2025)
 
-  if (!dir.exists(out_dir)) {
-    dir.create(out_dir, recursive = TRUE)
+  if (is.null(n_replicates_hmc)) n_replicates_hmc <- n_replicates
+  if (!is.numeric(n_replicates) || length(n_replicates) != 1L ||
+    n_replicates < 1L || n_replicates != round(n_replicates)) {
+    stop("n_replicates must be a whole-number scalar >= 1.", call. = FALSE)
   }
+  if (!is.numeric(n_replicates_hmc) || length(n_replicates_hmc) != 1L ||
+    n_replicates_hmc < 1L || n_replicates_hmc != round(n_replicates_hmc)) {
+    stop("n_replicates_hmc must be a whole-number scalar >= 1.", call. = FALSE)
+  }
+  samplers <- match.arg(samplers, c("hmc", "mh"), several.ok = TRUE)
+
+  effective_reps <- max(n_replicates, n_replicates_hmc)
+
+  if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
   scenarios <- tidyr::crossing(
     n_obs = n_obs_vec,
     target_censoring_prop = censoring_props,
     weight_type = weight_types
-  ) %>%
-    dplyr::arrange(n_obs, target_censoring_prop, weight_type) %>%
+  ) |>
+    dplyr::arrange(n_obs, target_censoring_prop, weight_type) |>
     dplyr::mutate(scenario_id = dplyr::row_number())
 
-  sim_grid <- scenarios %>%
-    tidyr::uncount(n_replicates, .id = "sim_id")
+  sim_grid <- scenarios |>
+    tidyr::uncount(effective_reps, .id = "sim_id")
 
-  save_one_sim <- function(
-    n_obs,
-    target_censoring_prop,
-    weight_type,
-    scenario_id,
-    sim_id
-  ) {
+  save_one_sim <- function(n_obs, target_censoring_prop, weight_type,
+                           scenario_id, sim_id) {
     params <- get_default_params()
     params$target_censoring_prop <- target_censoring_prop
-
     dat <- simulate_survival_data(
-      n = n_obs,
-      params = params,
+      n = n_obs, params = params,
       weight_type = weight_type
     )
-
     fname <- file.path(
       out_dir,
       sprintf(
         "sim_s%03d_r%03d_n%04d_c%0.1f_w%s.rds",
-        scenario_id,
-        sim_id,
-        n_obs,
-        target_censoring_prop,
-        weight_type
+        scenario_id, sim_id, n_obs, target_censoring_prop, weight_type
       )
     )
     saveRDS(dat, fname, compress = "xz")
   }
-
   purrr::pwalk(.l = sim_grid, .f = save_one_sim)
 
+  attr(sim_grid, "n_replicates") <- n_replicates
+  attr(sim_grid, "n_replicates_hmc") <- n_replicates_hmc
+  attr(sim_grid, "samplers") <- samplers
   invisible(sim_grid)
 }
