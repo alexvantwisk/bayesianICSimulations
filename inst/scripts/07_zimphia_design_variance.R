@@ -57,3 +57,30 @@ comparison <- dplyr::left_join(design_ci, primary, by = "variable") |>
 dir.create("outputs/tables", showWarnings = FALSE, recursive = TRUE)
 readr::write_csv(comparison, "outputs/tables/tab_design_variance.csv")
 print(comparison)
+
+# Rubin-rules combination: design-aware total variance T = W̄ + (1 + 1/m) B
+# (within-replicate variance W̄ + between-replicate variance B). This is the
+# statistically defensible combination of Bayesian fits over survey-design
+# replicate weights (Beaumont & Bocci 2008; Rubin 1987).
+rep_summaries <- list.files(
+  "mcmc_outputs/zimphia_design_replicates",
+  pattern = "summary\\.rds$", recursive = TRUE, full.names = TRUE
+)
+all_summ <- dplyr::bind_rows(lapply(rep_summaries, readRDS))
+rubin <- combine_design_replicates(all_summ)
+readr::write_csv(rubin, "outputs/tables/tab_design_variance_rubin.csv")
+message("Rubin combination written to outputs/tables/tab_design_variance_rubin.csv")
+print(rubin)
+
+# Side-by-side: model-based vs Rubin total interval for the headline parameter
+beta_row <- dplyr::filter(rubin, variable == "beta")
+beta_model <- dplyr::filter(primary, variable == "beta")
+if (nrow(beta_row) == 1L && nrow(beta_model) == 1L) {
+  rubin_width <- beta_row$ci_upper - beta_row$ci_lower
+  ff <- rubin_width / beta_model$model_width
+  message(sprintf(
+    "\nbeta_sex headline (manuscript fill values):\n  model CrI:  [%.3f, %.3f]  width %.3f\n  Rubin CrI:  [%.3f, %.3f]  width %.3f\n  inflation:  %.3f\n",
+    beta_model$model_lo, beta_model$model_hi, beta_model$model_width,
+    beta_row$ci_lower, beta_row$ci_upper, rubin_width, ff
+  ))
+}

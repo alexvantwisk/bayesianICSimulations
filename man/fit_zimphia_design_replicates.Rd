@@ -25,8 +25,11 @@ fit_zimphia_design_replicates(
 \item{n_chains}{Default 1 (this is a design replicate, not a primary fit).}
 }
 \value{
-Tibble with \code{replicate}, \code{variable}, \code{median}, \code{q2.5}, \code{q97.5},
-\code{rhat}, \code{ess_bulk}, \code{runtime_secs}.
+Tibble with \code{replicate}, \code{variable}, \code{mean}, \code{median}, \code{sd},
+\code{q2.5}, \code{q97.5}, \code{rhat}, \code{ess_bulk}, \code{runtime_secs}. The \code{mean} and \code{sd}
+columns supply, respectively, the per-replicate posterior point estimate
+and the within-replicate posterior standard deviation required by
+\code{\link[=combine_design_replicates]{combine_design_replicates()}} to compute Rubin's combined variance.
 }
 \description{
 For each replicate weight column, substitute it into the \code{weight} column of

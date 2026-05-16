@@ -51,8 +51,11 @@ load_replicate_weights <- function(base, csv_path, n_reps = 100L) {
 #' @param output_dir Where to save per-replicate summaries.
 #' @param stan_model_file Path to scalar-beta Stan model.
 #' @param n_chains Default 1 (this is a design replicate, not a primary fit).
-#' @return Tibble with `replicate`, `variable`, `median`, `q2.5`, `q97.5`,
-#'   `rhat`, `ess_bulk`, `runtime_secs`.
+#' @return Tibble with `replicate`, `variable`, `mean`, `median`, `sd`,
+#'   `q2.5`, `q97.5`, `rhat`, `ess_bulk`, `runtime_secs`. The `mean` and `sd`
+#'   columns supply, respectively, the per-replicate posterior point estimate
+#'   and the within-replicate posterior standard deviation required by
+#'   [combine_design_replicates()] to compute Rubin's combined variance.
 #' @examples
 #' \dontrun{
 #' base <- readRDS("mcmc_outputs/zimphia/zimphia_prepared_data.rds")
@@ -149,7 +152,8 @@ fit_zimphia_design_replicates <- function(
 
     summ <- fit$summary(
       variables = c("alpha", "beta", "gamma"),
-      "median", ~ posterior::quantile2(.x, probs = c(0.025, 0.975)),
+      "mean", "median", "sd",
+      ~ posterior::quantile2(.x, probs = c(0.025, 0.975)),
       "rhat", "ess_bulk"
     ) |>
       dplyr::mutate(replicate = i, runtime_secs = rt)
@@ -170,4 +174,60 @@ fit_zimphia_design_replicates <- function(
   combined <- dplyr::bind_rows(results)
   readr::write_csv(combined, file.path(output_dir, "all_replicates.csv"))
   combined
+}
+
+#' Combine per-replicate ZIMPHIA design posteriors via Rubin's rules
+#'
+#' For each parameter, compute the design-aware total variance
+#' \deqn{T = \bar{W} + (1 + 1/m) B,}
+#' where \eqn{\bar{W}} is the mean within-replicate posterior variance
+#' (`mean(sd^2)`) and \eqn{B} is the between-replicate variance of
+#' posterior means (`var(mean)`). The approximate 95\% credible interval is
+#' \eqn{\bar{Q} \pm 1.96\sqrt{T}}, where \eqn{\bar{Q}} is the mean across
+#' replicates of the per-replicate posterior mean.
+#'
+#' This is the design-aware combination of Bayesian fits over survey-design
+#' replicate weights as described by Beaumont and Bocci (2008), using the
+#' classical Rubin (1987) multiple-imputation total-variance decomposition.
+#'
+#' @param replicate_summaries Tibble combining per-replicate `summary.rds`
+#'   files written by [fit_zimphia_design_replicates()]. Must include
+#'   columns `variable`, `mean`, `sd`, `replicate`.
+#' @return Tibble with one row per parameter: `variable`, `m` (number of
+#'   replicates), `q_bar` (combined point estimate), `w_bar` (mean
+#'   within-replicate variance), `b` (between-replicate variance of means),
+#'   `t_total` (Rubin total variance), `se_total` (\eqn{\sqrt{T}}),
+#'   `ci_lower`, `ci_upper`.
+#' @examples
+#' \dontrun{
+#' reps <- list.files(
+#'   "mcmc_outputs/zimphia_design_replicates",
+#'   pattern = "summary\\.rds$", recursive = TRUE, full.names = TRUE
+#' )
+#' all_summ <- purrr::map_dfr(reps, readRDS)
+#' combine_design_replicates(all_summ)
+#' }
+#' @export
+combine_design_replicates <- function(replicate_summaries) {
+  required <- c("variable", "mean", "sd", "replicate")
+  missing_cols <- setdiff(required, names(replicate_summaries))
+  if (length(missing_cols) > 0L) {
+    stop("replicate_summaries missing columns: ",
+      paste(missing_cols, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  replicate_summaries |>
+    dplyr::group_by(.data$variable) |>
+    dplyr::summarise(
+      m        = dplyr::n(),
+      q_bar    = mean(.data$mean),
+      w_bar    = mean(.data$sd^2),
+      b        = stats::var(.data$mean),
+      t_total  = .data$w_bar + (1 + 1 / .data$m) * .data$b,
+      se_total = sqrt(.data$t_total),
+      ci_lower = .data$q_bar - 1.96 * .data$se_total,
+      ci_upper = .data$q_bar + 1.96 * .data$se_total,
+      .groups  = "drop"
+    )
 }
